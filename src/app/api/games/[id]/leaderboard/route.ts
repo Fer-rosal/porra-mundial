@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireAuth } from '@/lib/auth'
+import { auth0 } from '@/lib/auth'
 import { successResponse, internalErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/lib/api-utils'
 
 const PHASE_KEY_TO_INDEX: Record<string, number> = {
@@ -17,7 +17,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
+    const user = { sub: session.user.sub }
     const { id } = await params
     const gameId = id
 
@@ -91,9 +95,7 @@ export async function GET(
 
     return successResponse(leaderboard)
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
+    
     return internalErrorResponse(error, 'GET /api/games/:id/leaderboard')
   }
 }

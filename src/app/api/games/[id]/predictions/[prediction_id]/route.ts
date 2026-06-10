@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireAuth } from '@/lib/auth'
+import { auth0 } from '@/lib/auth'
 import { successResponse, errorResponse, internalErrorResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from '@/lib/api-utils'
 
 export async function PUT(
@@ -8,7 +8,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; prediction_id: string }> }
 ) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
+    const user = { sub: session.user.sub }
     const { id, prediction_id } = await params
     const gameId = id
     const predictionId = prediction_id
@@ -93,9 +97,7 @@ export async function PUT(
 
     return successResponse(updated)
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
+    
     return internalErrorResponse(error, 'PUT /api/games/:id/predictions/:prediction_id')
   }
 }

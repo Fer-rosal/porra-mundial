@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireAuth } from '@/lib/auth'
+import { auth0 } from '@/lib/auth'
 import { successResponse, internalErrorResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse } from '@/lib/api-utils'
 
 export async function PUT(
@@ -8,7 +8,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; phase_key: string }> }
 ) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
+    const user = { sub: session.user.sub }
     const { id, phase_key } = await params
     const gameId = id
     const phaseKey = phase_key
@@ -56,9 +60,7 @@ export async function PUT(
 
     return successResponse({ tournament_phases: allPhases || [] })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
+    
     return internalErrorResponse(error, 'PUT /api/games/:id/phase/:phase_key/lock')
   }
 }

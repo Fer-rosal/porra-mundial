@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireAuth } from '@/lib/auth'
+import { auth0 } from '@/lib/auth'
 import { successResponse, errorResponse, internalErrorResponse, unauthorizedResponse, forbiddenResponse } from '@/lib/api-utils'
 
 export async function POST(
@@ -8,7 +8,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
+    const user = { sub: session.user.sub }
     const { id } = await params
     const gameId = id
     const body = await request.json()
@@ -74,9 +78,7 @@ export async function POST(
 
     return successResponse(upserted, 201)
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
+    
     return internalErrorResponse(error, 'POST /api/games/:id/scorer-selection')
   }
 }

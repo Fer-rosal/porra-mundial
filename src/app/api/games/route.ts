@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { requireAuth } from '@/lib/auth'
+import { auth0 } from '@/lib/auth'
 import { successResponse, errorResponse, internalErrorResponse, unauthorizedResponse } from '@/lib/api-utils'
 import { MATCH_DATA } from '@/lib/match-data'
 
@@ -34,8 +34,12 @@ async function generateUniqueInviteCode(maxRetries: number = 5): Promise<string>
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
     const body = await request.json()
+    const user = { sub: session.user.sub }
 
     // Validate input
     if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
@@ -114,16 +118,17 @@ export async function POST(request: NextRequest) {
       201
     )
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
     return internalErrorResponse(error, 'POST /api/games')
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request)
+    const session = await auth0.getSession(request)
+    if (!session) {
+      return unauthorizedResponse()
+    }
+    const user = { sub: session.user.sub }
 
     // Get games where user is admin
     const { data: adminGames, error: adminGamesError } = await supabase
@@ -185,9 +190,6 @@ export async function GET(request: NextRequest) {
 
     return successResponse({ games: gamesWithPlayerCount })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
     return internalErrorResponse(error, 'GET /api/games')
   }
 }
