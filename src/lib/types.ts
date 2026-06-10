@@ -1,8 +1,9 @@
 export type TournamentPhase = 'LEAGUE' | '1/16' | '1/8' | '1/4' | '1/2' | 'FINAL';
+export type PhaseKey = 'LEAGUE' | 'R16' | 'R8' | 'R4' | 'R2' | 'FINAL';
 
 export interface Game {
   id: string;
-  admin_id: string;
+  creator_session_id: string;             // was: admin_id
   name: string;
   invite_code: string;
   status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED';
@@ -62,7 +63,7 @@ export interface ScorerSelection {
 export interface GamePlayer {
   id: string;
   game_id: string;
-  auth0_user_id: string;
+  session_id: string;                     // was: auth0_user_id
   total_score: number;
   player_name?: string;
   joined_at: string;
@@ -106,13 +107,6 @@ export interface MyScoreResponse {
   game_player_id: string;
   phase_scores: PhaseScore[];
   total_score: number;
-}
-
-export interface AuthUser {
-  sub: string;
-  name?: string;
-  email?: string;
-  picture?: string;
 }
 
 export interface ErrorResponse {

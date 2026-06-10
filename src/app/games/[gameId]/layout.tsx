@@ -1,13 +1,9 @@
 'use client';
 
 import { use } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { getGame } from '@/lib/api';
+import { useGameStore } from '@/lib/game-store';
 import { ReactNode } from 'react';
-
-const PHASE_TABS = ['LEAGUE', '1/16', '1/8', '1/4', '1/2', 'FINAL'] as const;
 
 export default function GameLayout({
   children,
@@ -17,30 +13,30 @@ export default function GameLayout({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = use(params);
-  const { user, isLoading: authLoading } = useUser();
-  const { data: game, isLoading } = useQuery({
-    queryKey: ['game', gameId],
-    queryFn: () => getGame(gameId),
-    enabled: !!user,
-  });
+  const { getGame, getMySession } = useGameStore();
 
-  if (authLoading || isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-600">Loading game...</p>
-      </div>
-    );
-  }
+  const game = getGame(gameId);
+  const mySession = getMySession(gameId);
+  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
 
   if (!game) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-600">Game not found</p>
+      <div className="flex min-h-screen items-center justify-center" data-testid="game-layout-not-found">
+        <div className="max-w-md text-center">
+          <p className="mb-4 text-xl font-semibold text-gray-900">Game not found</p>
+          <p className="mb-6 text-gray-600">
+            Game data not found. It may have been cleared from this browser.
+          </p>
+          <Link
+            href="/dashboard"
+            className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
       </div>
     );
   }
-
-  const isAdmin = user?.sub === game.admin_id;
 
   return (
     <div className="min-h-screen bg-white" data-testid="game-layout">
@@ -51,7 +47,17 @@ export default function GameLayout({
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{game.name}</h1>
               <p className="mt-1 text-gray-600">
-                {game.player_count} player{game.player_count !== 1 ? 's' : ''}
+                {game.players.length} player{game.players.length !== 1 ? 's' : ''}
+                {mySession && (
+                  <span className="ml-2 text-sm text-gray-500">
+                    — Playing as <span className="font-medium">{mySession.name}</span>
+                    {isAdmin && (
+                      <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        Creator
+                      </span>
+                    )}
+                  </span>
+                )}
               </p>
             </div>
             {isAdmin && (

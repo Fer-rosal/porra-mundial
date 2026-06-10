@@ -228,7 +228,7 @@ export async function calculatePhaseScores(
 
       const leaderboardEntry: Leaderboard = {
         game_player_id: gamePlayer.id,
-        player_name: gamePlayer.auth0_user_id, // TODO: fetch actual name from Auth0
+        player_name: gamePlayer.player_name || gamePlayer.session_id,
         phase_1_score: 0,
         phase_2_score: 0,
         phase_3_score: 0,

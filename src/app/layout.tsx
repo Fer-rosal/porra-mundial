@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 import NavHeader from '@/components/NavHeader';
 import { Providers } from './providers';
+import { GameStoreProvider } from '@/lib/game-store';
 import { ReactNode } from 'react';
 
 export const metadata: Metadata = {
@@ -17,12 +18,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body>
-        <Providers>
-          <NavHeader />
-          <main className="min-h-screen bg-white">
-            {children}
-          </main>
-        </Providers>
+        <GameStoreProvider>
+          <Providers>
+            <NavHeader />
+            <main className="min-h-screen bg-white">
+              {children}
+            </main>
+          </Providers>
+        </GameStoreProvider>
       </body>
     </html>
   );

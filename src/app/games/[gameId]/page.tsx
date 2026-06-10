@@ -1,38 +1,38 @@
 'use client';
 
 import { use } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
-import { useQuery } from '@tanstack/react-query';
-import { getGame } from '@/lib/api';
+import { useGameStore } from '@/lib/game-store';
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
+import Link from 'next/link';
 
 export default function GameOverviewPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { user } = useUser();
+  const { getGame, getMySession } = useGameStore();
   const [codeCopied, setCodeCopied] = useState(false);
-  const { data: game, isLoading } = useQuery({
-    queryKey: ['game', gameId],
-    queryFn: () => getGame(gameId),
-    enabled: !!user,
-  });
 
-  if (isLoading) {
-    return <div className="text-gray-600">Loading...</div>;
-  }
+  const game = getGame(gameId);
+  const mySession = getMySession(gameId);
+  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
 
   if (!game) {
-    return <div className="text-red-600">Game not found</div>;
+    return (
+      <div className="text-red-600" data-testid="game-overview-not-found">
+        Game data not found. It may have been cleared from this browser.
+      </div>
+    );
   }
 
-  const isAdmin = user?.sub === game.admin_id;
-
   const copyInviteCode = async () => {
-    const inviteLink = `${window.location.origin}/join?code=${game.invite_code}`;
+    const inviteLink = `${window.location.origin}/join?code=${game.inviteCode}`;
     await navigator.clipboard.writeText(inviteLink);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   };
+
+  // Find currently open phase
+  const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
+  const currentPhaseLabel = openPhase ? openPhase.phaseKey : 'No active phase';
 
   return (
     <div className="space-y-8" data-testid="game-overview-page">
@@ -42,52 +42,115 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Status</span>
-            <span className="font-semibold text-gray-900">{game.status}</span>
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${
+              game.status === 'OPEN'
+                ? 'bg-green-100 text-green-800'
+                : game.status === 'IN_PROGRESS'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {game.status}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Players</span>
-            <span className="font-semibold text-gray-900">{game.player_count || 1}</span>
+            <span className="font-semibold text-gray-900">{game.players.length}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Current Phase</span>
+            <span className="font-semibold text-gray-900">{currentPhaseLabel}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Created</span>
             <span className="font-semibold text-gray-900">
-              {new Date(game.created_at).toLocaleDateString()}
+              {new Date(game.createdAt).toLocaleDateString()}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Invite code section (admin only) */}
-      {isAdmin && (
-        <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
-          <h2 className="mb-4 text-xl font-bold text-gray-900">Invite Players</h2>
-          <p className="mb-4 text-gray-600">
-            Share this code with players to let them join the game:
-          </p>
-          <div className="flex gap-2">
-            <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3">
-              <p className="font-mono text-lg font-semibold tracking-widest text-gray-900">
-                {game.invite_code}
-              </p>
-            </div>
-            <button
-              onClick={copyInviteCode}
-              className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600"
-              data-testid="game-copy-invite-btn"
+      {/* Invite section — visible to all players */}
+      <div className="rounded-lg border border-gray-200 p-6 shadow-sm" data-testid="game-invite-section">
+        <h2 className="mb-4 text-xl font-bold text-gray-900">Invite Players</h2>
+        <p className="mb-4 text-gray-600">
+          Share this code with players to let them join the game:
+        </p>
+        <div className="mb-3 rounded-lg bg-gray-50 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-gray-900">
+          {game.inviteCode}
+        </div>
+        <button
+          onClick={copyInviteCode}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600"
+          data-testid="game-copy-invite-btn"
+        >
+          {codeCopied ? (
+            <>
+              <Check size={18} />
+              Copied!
+            </>
+          ) : (
+            <>
+              <Copy size={18} />
+              Copy Invite Link
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Players list */}
+      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
+        <h2 className="mb-4 text-xl font-bold text-gray-900">Players</h2>
+        {game.players.length === 0 ? (
+          <p className="text-gray-600" data-testid="game-players-empty">No players yet</p>
+        ) : (
+          <ul className="space-y-2" data-testid="game-players-list">
+            {game.players.map((player) => (
+              <li
+                key={player.sessionId}
+                className="flex items-center gap-2 rounded-lg border border-gray-100 px-4 py-2"
+                data-testid={`game-player-${player.sessionId}`}
+              >
+                <span className="text-gray-900">{player.name}</span>
+                {player.sessionId === game.creatorSessionId && (
+                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                    Creator
+                  </span>
+                )}
+                {mySession && player.sessionId === mySession.sessionId && (
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                    You
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {!mySession && (
+          <p className="mt-4 text-sm text-gray-500">
+            Not in this game?{' '}
+            <Link
+              href={`/join?code=${game.inviteCode}`}
+              className="text-orange-600 hover:underline"
+              data-testid="game-join-link"
             >
-              {codeCopied ? (
-                <>
-                  <Check size={18} />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy size={18} />
-                  Copy Link
-                </>
-              )}
-            </button>
-          </div>
+              Join now
+            </Link>
+          </p>
+        )}
+      </div>
+
+      {/* Admin shortcut */}
+      {isAdmin && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-6">
+          <h2 className="mb-2 text-lg font-bold text-orange-900">Creator Controls</h2>
+          <p className="mb-4 text-orange-700">Open phases, lock predictions, and enter results.</p>
+          <Link
+            href={`/games/${gameId}/admin`}
+            className="inline-block rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+            data-testid="game-overview-admin-link"
+          >
+            Go to Admin Panel
+          </Link>
         </div>
       )}
 
@@ -105,8 +168,9 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
           </div>
           <div>
             <h3 className="font-semibold text-gray-900">Scoring</h3>
-            <ul className="mt-2 space-y-1 list-disc list-inside">
+            <ul className="mt-2 list-inside list-disc space-y-1">
               <li>Exact match: 3 points</li>
+              <li>Correct outcome only: 1 point</li>
               <li>Correct goalscorer: 1 point</li>
               <li>Final phase multiplier: 3x points</li>
             </ul>

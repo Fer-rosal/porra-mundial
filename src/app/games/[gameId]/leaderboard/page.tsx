@@ -1,21 +1,26 @@
 'use client';
 
 import { use } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
-import { useQuery } from '@tanstack/react-query';
-import { getLeaderboard } from '@/lib/api';
+import { useGameStore } from '@/lib/game-store';
+import { calculateLeaderboard } from '@/lib/local-scoring';
 import LeaderboardTable from '@/components/LeaderboardTable';
 
 export default function LeaderboardPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { user } = useUser();
-  const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['leaderboard', gameId],
-    queryFn: () => getLeaderboard(gameId),
-    enabled: !!user,
-  });
+  const { getGame, getMySession } = useGameStore();
 
-  if (isLoading) return <div className="text-gray-600">Loading leaderboard...</div>;
+  const game = getGame(gameId);
+  const mySession = getMySession(gameId);
+
+  if (!game) {
+    return (
+      <div className="text-red-600" data-testid="leaderboard-not-found">
+        Game data not found. It may have been cleared from this browser.
+      </div>
+    );
+  }
+
+  const entries = calculateLeaderboard(game);
 
   return (
     <div className="space-y-8" data-testid="leaderboard-page">
@@ -25,12 +30,15 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
       </div>
 
       {entries.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600" data-testid="leaderboard-empty">
+        <div
+          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          data-testid="leaderboard-empty"
+        >
           No players yet
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
-          <LeaderboardTable entries={entries} currentUserId={user?.sub} />
+          <LeaderboardTable entries={entries} currentSessionId={mySession?.sessionId} />
         </div>
       )}
     </div>

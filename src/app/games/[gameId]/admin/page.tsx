@@ -1,34 +1,30 @@
 'use client';
 
 import { use } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { getGame, openPhase, lockPhase } from '@/lib/api';
+import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import AdminControls from '@/components/AdminControls';
 import Link from 'next/link';
 import { useState } from 'react';
 
+const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+
 export default function AdminPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { user } = useUser();
-  const { data: game, isLoading } = useQuery({
-    queryKey: ['game', gameId],
-    queryFn: () => getGame(gameId),
-    enabled: !!user,
-  });
+  const { getGame, getMySession, openPhase, lockPhase } = useGameStore();
+  const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
 
-  const [selectedPhase, setSelectedPhase] = useState<string>('LEAGUE');
+  const game = getGame(gameId);
+  const mySession = getMySession(gameId);
 
-  const openMutation = useMutation({
-    mutationFn: () => openPhase(gameId, selectedPhase),
-  });
+  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+    return (
+      <div className="text-red-600" data-testid="admin-access-denied">
+        Access denied. Only the game creator can access the admin panel.
+      </div>
+    );
+  }
 
-  const lockMutation = useMutation({
-    mutationFn: () => lockPhase(gameId, selectedPhase),
-  });
-
-  if (isLoading) return <div className="text-gray-600">Loading...</div>;
-  if (!game || user?.sub !== game.admin_id) return <div className="text-red-600">Access denied</div>;
+  const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
 
   return (
     <div className="space-y-8" data-testid="admin-page">
@@ -36,6 +32,41 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
         <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
         <p className="mt-2 text-gray-600">Manage game phases and results</p>
       </div>
+
+      {/* Phase selector */}
+      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Select Phase</h2>
+        <div className="flex flex-wrap gap-2">
+          {PHASE_OPTIONS.map((phase) => {
+            const phaseData = game.phases.find((p) => p.phaseKey === phase);
+            return (
+              <button
+                key={phase}
+                onClick={() => setSelectedPhase(phase)}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedPhase === phase
+                    ? 'bg-orange-500 text-white'
+                    : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+                data-testid={`admin-phase-${phase}`}
+              >
+                {phase}
+                {phaseData?.isLocked && ' 🔒'}
+                {phaseData?.isOpen && !phaseData.isLocked && ' ✓'}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <AdminControls
+        gameId={gameId}
+        phaseKey={selectedPhase}
+        isOpen={selectedPhaseData?.isOpen ?? false}
+        isLocked={selectedPhaseData?.isLocked ?? false}
+        onOpen={async () => { openPhase(gameId, selectedPhase); }}
+        onLock={async () => { lockPhase(gameId, selectedPhase); }}
+      />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <Link
@@ -65,15 +96,6 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
           <p className="mt-1 text-gray-600">View all predictions and results</p>
         </Link>
       </div>
-
-      <AdminControls
-        gameId={gameId}
-        phaseKey={selectedPhase}
-        isOpen={false}
-        isLocked={false}
-        onOpen={() => openMutation.mutateAsync()}
-        onLock={() => lockMutation.mutateAsync()}
-      />
     </div>
   );
 }

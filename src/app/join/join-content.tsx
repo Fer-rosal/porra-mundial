@@ -1,17 +1,17 @@
 'use client';
 
-import { useUser } from '@auth0/nextjs-auth0/client';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
-import { joinGame } from '@/lib/api';
+import { useGameStore, persistSessionId } from '@/lib/game-store';
 import { useState, useEffect } from 'react';
 
 export function JoinContent() {
-  const { user, isLoading: authLoading } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { joinGame } = useGameStore();
   const [inviteCode, setInviteCode] = useState('');
+  const [playerName, setPlayerName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
 
   // Pre-fill code from URL query param
   useEffect(() => {
@@ -21,46 +21,44 @@ export function JoinContent() {
     }
   }, [searchParams]);
 
-  const joinMutation = useMutation({
-    mutationFn: (code: string) => joinGame(code),
-    onSuccess: (data) => {
-      router.push(`/games/${data.game_id}`);
-    },
-    onError: (err: any) => {
-      if (err.status === 409) {
-        setError('You already joined this game.');
-      } else if (err.status === 400) {
-        setError('Invite code not found. Check spelling.');
-      } else {
-        setError(err.error || 'Failed to join game');
-      }
-    },
-  });
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-600">Loading...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-600">Please log in to join a game</p>
-      </div>
-    );
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!inviteCode.trim()) {
+
+    const trimmedCode = inviteCode.trim().toUpperCase();
+    const trimmedName = playerName.trim();
+
+    if (!trimmedCode) {
       setError('Invite code is required');
       return;
     }
-    joinMutation.mutate(inviteCode.toUpperCase());
+    if (!trimmedName) {
+      setError('Player name is required');
+      return;
+    }
+    if (trimmedName.length > 50) {
+      setError('Player name must be 50 characters or fewer');
+      return;
+    }
+
+    setIsJoining(true);
+    try {
+      const result = joinGame(trimmedCode, trimmedName);
+
+      if ('error' in result) {
+        setError(result.error);
+        setIsJoining(false);
+        return;
+      }
+
+      // Persist the session for this game on this device
+      persistSessionId(result.game.id, result.sessionId);
+
+      router.push(`/games/${result.game.id}`);
+    } catch {
+      setError('Failed to join game. Please try again.');
+      setIsJoining(false);
+    }
   };
 
   return (
@@ -89,10 +87,27 @@ export function JoinContent() {
               type="text"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-              placeholder="e.g., ABC123"
+              placeholder="e.g., ABC1234"
               className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-center text-lg font-mono tracking-widest text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
               data-testid="join-code-input"
-              maxLength={10}
+              maxLength={7}
+            />
+          </div>
+
+          {/* Player name input */}
+          <div>
+            <label htmlFor="playerName" className="block text-sm font-medium text-gray-900">
+              Your Name *
+            </label>
+            <input
+              id="playerName"
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="e.g., Alex"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              data-testid="join-name-input"
+              maxLength={50}
             />
           </div>
 
@@ -100,14 +115,14 @@ export function JoinContent() {
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={joinMutation.isPending}
+              disabled={isJoining}
               className="flex-1 rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               data-testid="join-submit-btn"
             >
-              {joinMutation.isPending && (
+              {isJoining && (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               )}
-              {joinMutation.isPending ? 'Joining...' : 'Join Game'}
+              {isJoining ? 'Joining...' : 'Join Game'}
             </button>
             <button
               type="button"
