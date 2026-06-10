@@ -90,44 +90,56 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
         </div>
       )}
 
-      {existingSelection && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4" data-testid="scorer-existing">
-          <p className="text-sm font-medium text-orange-900">Current selection for {phaseKey}:</p>
-          <p className="mt-1 font-bold text-orange-700">{existingSelection.playerName}</p>
-          <p className="mt-1 text-xs text-orange-600">Submit a new name to update your selection.</p>
-        </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4"
-        data-testid="scorer-form"
-      >
-        <div>
-          <label htmlFor="playerName" className="block text-sm font-medium text-gray-900">
-            Player Name *
-          </label>
-          <input
-            id="playerName"
-            type="text"
-            value={playerName}
-            onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="e.g., Mbappé, Haaland"
-            disabled={!openPhase}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50"
-            data-testid="scorer-name-input"
-          />
-        </div>
-
-        <button
-          type="submit"
-          disabled={!openPhase}
-          className="w-full rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
-          data-testid="scorer-submit-btn"
+      {existingSelection ? (
+        <div
+          className="rounded-lg border border-gray-200 bg-gray-50 p-6"
+          data-testid="scorer-locked"
         >
-          Confirm Selection
-        </button>
-      </form>
+          <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+            Your scorer for {phaseKey}
+          </p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{existingSelection.playerName}</p>
+          <p className="mt-3 text-sm text-gray-500">
+            Your selection is locked and cannot be changed.
+          </p>
+          {existingSelection.isLocked && (
+            <span className="mt-3 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+              Point Awarded
+            </span>
+          )}
+        </div>
+      ) : (
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          data-testid="scorer-form"
+        >
+          <div>
+            <label htmlFor="playerName" className="block text-sm font-medium text-gray-900">
+              Player Name *
+            </label>
+            <input
+              id="playerName"
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="e.g., Mbappé, Haaland"
+              disabled={!openPhase}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50"
+              data-testid="scorer-name-input"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={!openPhase}
+            className="w-full rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            data-testid="scorer-submit-btn"
+          >
+            Confirm Selection
+          </button>
+        </form>
+      )}
     </div>
   );
 }

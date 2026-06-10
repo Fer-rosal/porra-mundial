@@ -364,25 +364,19 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       (s) => s.phaseKey === phaseKey && s.sessionId === mySession.sessionId
     )
 
-    let updatedSelections: LocalScorerSelection[]
-    if (existing) {
-      updatedSelections = game.scorerSelections.map((s) =>
-        s.id === existing.id
-          ? { ...s, playerName, updatedAt: now }
-          : s
-      )
-    } else {
-      const newSelection: LocalScorerSelection = {
-        id: generateUUID(),
-        phaseKey,
-        sessionId: mySession.sessionId,
-        playerName,
-        isLocked: false,
-        createdAt: now,
-        updatedAt: now,
-      }
-      updatedSelections = [...game.scorerSelections, newSelection]
+    // Scorer selection is final once submitted — no changes allowed
+    if (existing) return
+
+    const newSelection: LocalScorerSelection = {
+      id: generateUUID(),
+      phaseKey,
+      sessionId: mySession.sessionId,
+      playerName,
+      isLocked: false,
+      createdAt: now,
+      updatedAt: now,
     }
+    const updatedSelections = [...game.scorerSelections, newSelection]
 
     const updatedGames = {
       ...games,
