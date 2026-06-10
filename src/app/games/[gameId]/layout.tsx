@@ -13,11 +13,11 @@ export default function GameLayout({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = use(params);
-  const { getGame, getMySession } = useGameStore();
+  const { getGame, getMySession, getIsCreator } = useGameStore();
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
-  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
+  const isAdmin = getIsCreator(gameId);
 
   if (!game) {
     return (

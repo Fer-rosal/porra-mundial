@@ -5,12 +5,11 @@ import { useGameStore } from '@/lib/game-store';
 
 export default function HistoryPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession } = useGameStore();
+  const { getGame, getIsCreator } = useGameStore();
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="history-access-denied">
         Access denied. Only the game creator can view game history.

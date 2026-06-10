@@ -8,15 +8,14 @@ const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function ScorerPointsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, games } = useGameStore();
+  const { getGame, getIsCreator, games } = useGameStore();
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="scorer-points-access-denied">
         Access denied. Only the game creator can award scorer points.

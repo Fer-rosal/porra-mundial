@@ -19,7 +19,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
   const { gameId } = use(params);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { getGame, getMySession, savePhaseMatches } = useGameStore();
+  const { getGame, getIsCreator, savePhaseMatches } = useGameStore();
 
   const phaseParam = (searchParams?.get('phase') ?? 'R16') as PhaseKey;
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>(phaseParam);
@@ -27,7 +27,6 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
   const [saved, setSaved] = useState(false);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
   // Reset edits when phase changes
   useEffect(() => {
@@ -35,7 +34,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
     setSaved(false);
   }, [selectedPhase]);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="admin-matches-access-denied">
         Access denied. Only the game creator can manage matches.

@@ -3,12 +3,13 @@
 import { use, useState } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import MatchCard from '@/components/MatchCard';
+import Link from 'next/link';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function AdminPredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, overridePredictions } = useGameStore();
+  const { getGame, getIsCreator, overridePredictions } = useGameStore();
 
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -17,16 +18,23 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
   const [saved, setSaved] = useState(false);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
+  const isCreator = getIsCreator(gameId);
 
   // Access guard
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !isCreator) {
     return (
       <div
         className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700"
         data-testid="admin-access-denied"
       >
-        Access denied. Only the game creator can access the admin panel.
+        <p className="font-semibold">Access denied</p>
+        <p className="mt-1 text-sm">Only the game creator can access the admin panel.</p>
+        <Link
+          href={game ? `/games/${gameId}` : '/dashboard'}
+          className="mt-4 inline-block rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+        >
+          Back to Overview
+        </Link>
       </div>
     );
   }

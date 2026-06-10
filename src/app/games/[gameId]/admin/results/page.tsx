@@ -9,16 +9,15 @@ const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function ResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, saveResults } = useGameStore();
+  const { getGame, getIsCreator, saveResults } = useGameStore();
   const [results, setResults] = useState<Record<string, [number, number]>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="results-access-denied">
         Access denied. Only the game creator can enter results.

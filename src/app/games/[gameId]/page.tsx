@@ -1,21 +1,22 @@
 'use client';
 
 import { use } from 'react';
-import { useGameStore } from '@/lib/game-store';
+import { useGameStore, persistCreatorSessionId } from '@/lib/game-store';
 import { Copy, Check, Download } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 
 export default function GameOverviewPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, exportGame } = useGameStore();
+  const { getGame, getMySession, getIsCreator, exportGame } = useGameStore();
   const [codeCopied, setCodeCopied] = useState(false);
   const [exportCode, setExportCode] = useState<string | null>(null);
   const [exportCopied, setExportCopied] = useState(false);
+  const [adminReclaimed, setAdminReclaimed] = useState(false);
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
-  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
+  const isAdmin = getIsCreator(gameId) || adminReclaimed;
 
   if (!game) {
     return (
@@ -46,6 +47,12 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
     await navigator.clipboard.writeText(exportCode);
     setExportCopied(true);
     setTimeout(() => setExportCopied(false), 2000);
+  };
+
+  const handleReclaimAdmin = () => {
+    if (!game) return;
+    persistCreatorSessionId(gameId, game.creatorSessionId);
+    setAdminReclaimed(true);
   };
 
   // Find currently open phase
@@ -169,6 +176,26 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
           >
             Go to Admin Panel
           </Link>
+        </div>
+      )}
+
+      {/* Reclaim Admin Access — shown when no creator key is present in this browser */}
+      {!getIsCreator(gameId) && !adminReclaimed && (
+        <div
+          className="rounded-lg border border-orange-200 bg-orange-50 p-6"
+          data-testid="game-reclaim-admin-card"
+        >
+          <h2 className="mb-2 text-lg font-bold text-orange-900">Lost Admin Access?</h2>
+          <p className="mb-4 text-orange-700">
+            If you created this game on this browser, you can reclaim admin access.
+          </p>
+          <button
+            onClick={handleReclaimAdmin}
+            className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+            data-testid="game-reclaim-admin-btn"
+          >
+            Reclaim Admin Access
+          </button>
         </div>
       )}
 

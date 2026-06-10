@@ -164,6 +164,7 @@ interface GameStoreContextValue {
   joinGame: (inviteCode: string, playerName: string) => { game: LocalGame; sessionId: string } | { error: string }
   getGame: (gameId: string) => LocalGame | null
   getMySession: (gameId: string) => LocalPlayer | null
+  getIsCreator: (gameId: string) => boolean
   savePrediction: (
     gameId: string,
     prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
@@ -261,6 +262,10 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
     const updatedGames = { ...games, [game.id]: game }
     persist(updatedGames)
+    // Write the creator key so admin access survives the creator joining as a player
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`porra_mundial_creator_${game.id}`, sessionId)
+    }
     return game
   }
 
@@ -324,6 +329,32 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     return game.players.find((p) => p.sessionId === sessionId) ?? null
   }
 
+  function getIsCreator(gameId: string): boolean {
+    if (typeof window === 'undefined') return false
+    const game = games[gameId]
+    if (!game) return false
+
+    const creatorKey = `porra_mundial_creator_${gameId}`
+    const sessionKey = `porra_mundial_session_${gameId}`
+    const storedCreatorId = localStorage.getItem(creatorKey)
+
+    if (storedCreatorId) {
+      // Creator key exists — check it matches (guards against stale/invalid keys)
+      return storedCreatorId === game.creatorSessionId
+    }
+
+    // Migration: no creator key yet — check if current session key IS the creator session
+    // This covers creators who created the game before this fix was deployed
+    const currentSessionId = localStorage.getItem(sessionKey)
+    if (currentSessionId && currentSessionId === game.creatorSessionId) {
+      // Backfill: write the creator key for future calls
+      localStorage.setItem(creatorKey, game.creatorSessionId)
+      return true
+    }
+
+    return false
+  }
+
   function savePrediction(
     gameId: string,
     prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
@@ -368,8 +399,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     if (!game) return
 
     // Only the game creator may override
-    const mySession = getMySession(gameId)
-    if (!mySession || mySession.sessionId !== game.creatorSessionId) return
+    if (!getIsCreator(gameId)) return
 
     const now = new Date().toISOString()
     const existing = game.predictions.find(
@@ -417,8 +447,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
   ): void {
     const game = games[gameId]
     if (!game) return
-    const mySession = getMySession(gameId)
-    if (!mySession || mySession.sessionId !== game.creatorSessionId) return
+    if (!getIsCreator(gameId)) return
 
     const now = new Date().toISOString()
     let updatedPredictions = [...game.predictions]
@@ -586,6 +615,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     persist(remaining)
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`porra_mundial_session_${gameId}`)
+      localStorage.removeItem(`porra_mundial_creator_${gameId}`)
     }
   }
 
@@ -615,6 +645,10 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       persist(updatedGames)
       if (data.sessionId && typeof window !== 'undefined') {
         localStorage.setItem(`porra_mundial_session_${data.game.id}`, data.sessionId)
+        // Restore creator key if the imported session is the creator session
+        if (data.sessionId === data.game.creatorSessionId) {
+          localStorage.setItem(`porra_mundial_creator_${data.game.id}`, data.sessionId)
+        }
       }
       return { game: data.game, sessionId: data.sessionId ?? null }
     } catch {
@@ -664,6 +698,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         joinGame,
         getGame,
         getMySession,
+        getIsCreator,
         savePrediction,
         savePredictions,
         overridePrediction,
@@ -709,5 +744,16 @@ export function useGameStore(): GameStoreContextValue {
 export function persistSessionId(gameId: string, sessionId: string): void {
   if (typeof window !== 'undefined') {
     localStorage.setItem(`porra_mundial_session_${gameId}`, sessionId)
+  }
+}
+
+/**
+ * Persists the creator's sessionId in a dedicated key that is never overwritten
+ * by the join flow. This allows the creator to join their own game as a named
+ * player without losing admin access.
+ */
+export function persistCreatorSessionId(gameId: string, sessionId: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`porra_mundial_creator_${gameId}`, sessionId)
   }
 }
