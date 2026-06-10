@@ -3,28 +3,28 @@ import { MATCH_DATA, getMatchesByPhase } from '../match-data'
 describe('Match Data Utilities', () => {
   describe('MATCH_DATA constant', () => {
     it('should have all tournament matches populated', () => {
-      expect(MATCH_DATA.length).toBeGreaterThan(0)
-      expect(MATCH_DATA.length).toBeLessThanOrEqual(64)
+      // 72 LEAGUE + 16 R16 + 8 R8 + 4 R4 + 2 R2 + 2 FINAL = 104
+      expect(MATCH_DATA.length).toBe(104)
     })
 
     it('should have LEAGUE phase matches', () => {
       const leagueMatches = MATCH_DATA.filter((m) => m.phase_key === 'LEAGUE')
-      expect(leagueMatches.length).toBe(8)
+      expect(leagueMatches.length).toBe(72)
     })
 
     it('should have R16 phase matches', () => {
       const r16Matches = MATCH_DATA.filter((m) => m.phase_key === 'R16')
-      expect(r16Matches.length).toBe(8)
+      expect(r16Matches.length).toBe(16)
     })
 
     it('should have R8 phase matches', () => {
       const r8Matches = MATCH_DATA.filter((m) => m.phase_key === 'R8')
-      expect(r8Matches.length).toBe(4)
+      expect(r8Matches.length).toBe(8)
     })
 
     it('should have R4 phase matches', () => {
       const r4Matches = MATCH_DATA.filter((m) => m.phase_key === 'R4')
-      expect(r4Matches.length).toBe(2)
+      expect(r4Matches.length).toBe(4)
     })
 
     it('should have R2 phase matches', () => {
@@ -32,9 +32,9 @@ describe('Match Data Utilities', () => {
       expect(r2Matches.length).toBe(2)
     })
 
-    it('should have FINAL phase match', () => {
+    it('should have FINAL phase matches', () => {
       const finalMatches = MATCH_DATA.filter((m) => m.phase_key === 'FINAL')
-      expect(finalMatches.length).toBe(1)
+      expect(finalMatches.length).toBe(2)
     })
 
     it('should have all required fields in each match', () => {
@@ -65,7 +65,7 @@ describe('Match Data Utilities', () => {
   describe('getMatchesByPhase', () => {
     it('should return all matches for a given phase', () => {
       const leagueMatches = getMatchesByPhase('LEAGUE')
-      expect(leagueMatches.length).toBe(8)
+      expect(leagueMatches.length).toBe(72)
       leagueMatches.forEach((match) => {
         expect(match.phase_key).toBe('LEAGUE')
       })
@@ -83,17 +83,17 @@ describe('Match Data Utilities', () => {
 
     it('should return correct count for R16 phase', () => {
       const r16Matches = getMatchesByPhase('R16')
-      expect(r16Matches.length).toBe(8)
+      expect(r16Matches.length).toBe(16)
     })
 
     it('should return correct count for R8 phase', () => {
       const r8Matches = getMatchesByPhase('R8')
-      expect(r8Matches.length).toBe(4)
+      expect(r8Matches.length).toBe(8)
     })
 
     it('should return correct count for FINAL phase', () => {
       const finalMatches = getMatchesByPhase('FINAL')
-      expect(finalMatches.length).toBe(1)
+      expect(finalMatches.length).toBe(2)
     })
   })
 })

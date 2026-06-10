@@ -38,6 +38,7 @@ export interface LocalMatch {
   homeGoals: number | null
   awayGoals: number | null
   resultEntered: boolean
+  teamsConfirmed: boolean  // false for knockout rounds until admin confirms via Manage Matches
 }
 
 export interface LocalPrediction {
@@ -129,12 +130,12 @@ function writeStore(store: LocalStore): void {
 
 const ALL_PHASES: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL']
 
-function createInitialPhases(): LocalPhase[] {
+function createInitialPhases(now: string): LocalPhase[] {
   return ALL_PHASES.map((phaseKey) => ({
     phaseKey,
-    isOpen: false,
+    isOpen: phaseKey === 'LEAGUE',
     isLocked: false,
-    openedAt: null,
+    openedAt: phaseKey === 'LEAGUE' ? now : null,
     lockedAt: null,
   }))
 }
@@ -150,6 +151,7 @@ function createMatchesFromData(): LocalMatch[] {
     homeGoals: null,
     awayGoals: null,
     resultEntered: false,
+    teamsConfirmed: m.phase_key === 'LEAGUE',
   }))
 }
 
@@ -175,6 +177,10 @@ interface GameStoreContextValue {
     results: Array<{ matchId: string; homeGoals: number; awayGoals: number }>
   ) => void
   deleteGame: (gameId: string) => void
+  exportGame: (gameId: string) => string
+  importGame: (encoded: string) => { game: LocalGame; sessionId: string | null } | { error: string }
+  updateMatchTeams: (gameId: string, matchId: string, homeTeam: string, awayTeam: string) => void
+  savePhaseMatches: (gameId: string, updates: Array<{ matchId: string; homeTeam: string; awayTeam: string }>) => void
 }
 
 const GameStoreContext = createContext<GameStoreContextValue | null>(null)
@@ -233,7 +239,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
           joinedAt: now,
         },
       ],
-      phases: createInitialPhases(),
+      phases: createInitialPhases(now),
       matches: createMatchesFromData(),
       predictions: [],
       scorerSelections: [],
@@ -447,10 +453,75 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
   function deleteGame(gameId: string): void {
     const { [gameId]: _removed, ...remaining } = games
     persist(remaining)
-    // Clean up session key
     if (typeof window !== 'undefined') {
       localStorage.removeItem(`porra_mundial_session_${gameId}`)
     }
+  }
+
+  function exportGame(gameId: string): string {
+    const game = games[gameId]
+    if (!game) throw new Error('Game not found')
+    const sessionId =
+      typeof window !== 'undefined'
+        ? localStorage.getItem(`porra_mundial_session_${gameId}`)
+        : null
+    const data = { v: 1, game, sessionId, at: new Date().toISOString() }
+    return btoa(encodeURIComponent(JSON.stringify(data)))
+  }
+
+  function importGame(
+    encoded: string
+  ): { game: LocalGame; sessionId: string | null } | { error: string } {
+    try {
+      const data = JSON.parse(decodeURIComponent(atob(encoded))) as {
+        v: number
+        game: LocalGame
+        sessionId: string | null
+        at: string
+      }
+      if (!data.game?.id) return { error: 'Invalid game data' }
+      const updatedGames = { ...games, [data.game.id]: data.game }
+      persist(updatedGames)
+      if (data.sessionId && typeof window !== 'undefined') {
+        localStorage.setItem(`porra_mundial_session_${data.game.id}`, data.sessionId)
+      }
+      return { game: data.game, sessionId: data.sessionId ?? null }
+    } catch {
+      return { error: 'Invalid export code. Please check and try again.' }
+    }
+  }
+
+  function updateMatchTeams(
+    gameId: string,
+    matchId: string,
+    homeTeam: string,
+    awayTeam: string
+  ): void {
+    const game = games[gameId]
+    if (!game) return
+    const now = new Date().toISOString()
+    const updatedMatches = game.matches.map((m) =>
+      m.id === matchId
+        ? { ...m, homeTeam: homeTeam.trim(), awayTeam: awayTeam.trim(), teamsConfirmed: true }
+        : m
+    )
+    persist({ ...games, [gameId]: { ...game, matches: updatedMatches, updatedAt: now } })
+  }
+
+  function savePhaseMatches(
+    gameId: string,
+    updates: Array<{ matchId: string; homeTeam: string; awayTeam: string }>
+  ): void {
+    const game = games[gameId]
+    if (!game) return
+    const now = new Date().toISOString()
+    const updateMap = new Map(updates.map((u) => [u.matchId, u]))
+    const updatedMatches = game.matches.map((m) => {
+      const u = updateMap.get(m.id)
+      if (!u) return m
+      return { ...m, homeTeam: u.homeTeam.trim(), awayTeam: u.awayTeam.trim(), teamsConfirmed: true }
+    })
+    persist({ ...games, [gameId]: { ...game, matches: updatedMatches, updatedAt: now } })
   }
 
   return (
@@ -468,6 +539,10 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         lockPhase,
         saveResults,
         deleteGame,
+        exportGame,
+        importGame,
+        updateMatchTeams,
+        savePhaseMatches,
       }}
     >
       {!storageAvailable && (

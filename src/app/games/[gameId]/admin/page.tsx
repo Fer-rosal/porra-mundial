@@ -25,6 +25,8 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
   }
 
   const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
+  const selectedPhaseMatches = game.matches.filter((m) => m.phaseKey === selectedPhase);
+  const hasTbdMatches = selectedPhase !== 'LEAGUE' && selectedPhaseMatches.some((m) => !m.teamsConfirmed);
 
   return (
     <div className="space-y-8" data-testid="admin-page">
@@ -66,6 +68,8 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
         isLocked={selectedPhaseData?.isLocked ?? false}
         onOpen={async () => { openPhase(gameId, selectedPhase); }}
         onLock={async () => { lockPhase(gameId, selectedPhase); }}
+        hasTbdMatches={hasTbdMatches}
+        manageMatchesHref={`/games/${gameId}/admin/matches?phase=${selectedPhase}`}
       />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -94,6 +98,15 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
         >
           <h3 className="text-lg font-semibold text-gray-900">History</h3>
           <p className="mt-1 text-gray-600">View all predictions and results</p>
+        </Link>
+
+        <Link
+          href={`/games/${gameId}/admin/matches?phase=${selectedPhase}`}
+          className="rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow"
+          data-testid="admin-manage-matches-card"
+        >
+          <h3 className="text-lg font-semibold text-gray-900">Manage Matches</h3>
+          <p className="mt-1 text-gray-600">Edit team names for knockout rounds</p>
         </Link>
       </div>
     </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 
 interface AdminControlsProps {
   gameId: string;
@@ -10,6 +11,8 @@ interface AdminControlsProps {
   isLocked: boolean;
   onOpen: () => Promise<void>;
   onLock: () => Promise<void>;
+  hasTbdMatches?: boolean;
+  manageMatchesHref?: string;
 }
 
 export default function AdminControls({
@@ -19,6 +22,8 @@ export default function AdminControls({
   isLocked,
   onOpen,
   onLock,
+  hasTbdMatches,
+  manageMatchesHref,
 }: AdminControlsProps) {
   const [loading, setLoading] = useState(false);
   const [confirmAction, setConfirmAction] = useState<'open' | 'lock' | null>(null);
@@ -54,7 +59,33 @@ export default function AdminControls({
       </div>
 
       <div className="space-y-2">
-        {!isOpen && !isLocked && (
+        {!isOpen && !isLocked && hasTbdMatches && (
+          <div
+            className="rounded-lg border border-amber-200 bg-amber-50 p-4"
+            data-testid="admin-tbd-warning"
+          >
+            <div className="flex items-start gap-2 text-amber-800">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">Teams not yet set for this phase</p>
+                <p className="mt-1 text-sm">
+                  Enter all match teams before opening this phase so players can make predictions.
+                </p>
+                {manageMatchesHref && (
+                  <Link
+                    href={manageMatchesHref}
+                    className="mt-2 inline-block text-sm font-semibold text-amber-900 underline hover:text-amber-700"
+                    data-testid="admin-tbd-manage-link"
+                  >
+                    Go to Manage Matches →
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isOpen && !isLocked && !hasTbdMatches && (
           <button
             onClick={() => setConfirmAction('open')}
             className="w-full flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 font-semibold text-white hover:bg-green-600 disabled:opacity-50"
