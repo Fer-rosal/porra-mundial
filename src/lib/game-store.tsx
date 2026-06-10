@@ -168,6 +168,20 @@ interface GameStoreContextValue {
     gameId: string,
     prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
   ) => void
+  overridePrediction: (
+    gameId: string,
+    targetSessionId: string,
+    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
+  ) => void
+  overridePredictions: (
+    gameId: string,
+    targetSessionId: string,
+    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
+  ) => void
+  savePredictions: (
+    gameId: string,
+    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
+  ) => void
   saveScorerSelection: (gameId: string, phaseKey: PhaseKey, playerName: string) => void
   openPhase: (gameId: string, phaseKey: PhaseKey) => void
   lockPhase: (gameId: string, phaseKey: PhaseKey) => void
@@ -320,22 +334,66 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     const mySession = getMySession(gameId)
     if (!mySession) return
 
-    const now = new Date().toISOString()
+    // IMMUTABILITY: if prediction already exists for this player+match, do nothing
     const existing = game.predictions.find(
       (p) => p.matchId === prediction.matchId && p.sessionId === mySession.sessionId
+    )
+    if (existing) return
+
+    const now = new Date().toISOString()
+    const newPrediction: LocalPrediction = {
+      id: generateUUID(),
+      sessionId: mySession.sessionId,
+      matchId: prediction.matchId,
+      homeGoalsPredicted: prediction.homeGoalsPredicted,
+      awayGoalsPredicted: prediction.awayGoalsPredicted,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const updatedPredictions = [...game.predictions, newPrediction]
+
+    const updatedGames = {
+      ...games,
+      [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now },
+    }
+    persist(updatedGames)
+  }
+
+  function overridePrediction(
+    gameId: string,
+    targetSessionId: string,
+    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
+  ): void {
+    const game = games[gameId]
+    if (!game) return
+
+    // Only the game creator may override
+    const mySession = getMySession(gameId)
+    if (!mySession || mySession.sessionId !== game.creatorSessionId) return
+
+    const now = new Date().toISOString()
+    const existing = game.predictions.find(
+      (p) => p.matchId === prediction.matchId && p.sessionId === targetSessionId
     )
 
     let updatedPredictions: LocalPrediction[]
     if (existing) {
+      // Admin overwrite: update existing
       updatedPredictions = game.predictions.map((p) =>
         p.id === existing.id
-          ? { ...p, homeGoalsPredicted: prediction.homeGoalsPredicted, awayGoalsPredicted: prediction.awayGoalsPredicted, updatedAt: now }
+          ? {
+              ...p,
+              homeGoalsPredicted: prediction.homeGoalsPredicted,
+              awayGoalsPredicted: prediction.awayGoalsPredicted,
+              updatedAt: now,
+            }
           : p
       )
     } else {
+      // Admin create: insert new prediction on behalf of targetSessionId
       const newPrediction: LocalPrediction = {
         id: generateUUID(),
-        sessionId: mySession.sessionId,
+        sessionId: targetSessionId,
         matchId: prediction.matchId,
         homeGoalsPredicted: prediction.homeGoalsPredicted,
         awayGoalsPredicted: prediction.awayGoalsPredicted,
@@ -350,6 +408,85 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now },
     }
     persist(updatedGames)
+  }
+
+  function overridePredictions(
+    gameId: string,
+    targetSessionId: string,
+    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
+  ): void {
+    const game = games[gameId]
+    if (!game) return
+    const mySession = getMySession(gameId)
+    if (!mySession || mySession.sessionId !== game.creatorSessionId) return
+
+    const now = new Date().toISOString()
+    let updatedPredictions = [...game.predictions]
+
+    for (const prediction of predictions) {
+      const existing = updatedPredictions.find(
+        (p) => p.matchId === prediction.matchId && p.sessionId === targetSessionId
+      )
+      if (existing) {
+        updatedPredictions = updatedPredictions.map((p) =>
+          p.id === existing.id
+            ? { ...p, homeGoalsPredicted: prediction.homeGoalsPredicted, awayGoalsPredicted: prediction.awayGoalsPredicted, updatedAt: now }
+            : p
+        )
+      } else {
+        updatedPredictions = [
+          ...updatedPredictions,
+          {
+            id: generateUUID(),
+            sessionId: targetSessionId,
+            matchId: prediction.matchId,
+            homeGoalsPredicted: prediction.homeGoalsPredicted,
+            awayGoalsPredicted: prediction.awayGoalsPredicted,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ]
+      }
+    }
+
+    persist({ ...games, [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now } })
+  }
+
+  function savePredictions(
+    gameId: string,
+    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
+  ): void {
+    const game = games[gameId]
+    if (!game) return
+    const mySession = getMySession(gameId)
+    if (!mySession) return
+
+    const now = new Date().toISOString()
+    const sessionId = mySession.sessionId
+    let updatedPredictions = [...game.predictions]
+
+    for (const prediction of predictions) {
+      // Immutability: skip if already saved for this session+match
+      const alreadyExists = updatedPredictions.some(
+        (p) => p.matchId === prediction.matchId && p.sessionId === sessionId
+      )
+      if (alreadyExists) continue
+
+      updatedPredictions = [
+        ...updatedPredictions,
+        {
+          id: generateUUID(),
+          sessionId,
+          matchId: prediction.matchId,
+          homeGoalsPredicted: prediction.homeGoalsPredicted,
+          awayGoalsPredicted: prediction.awayGoalsPredicted,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]
+    }
+
+    persist({ ...games, [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now } })
   }
 
   function saveScorerSelection(gameId: string, phaseKey: PhaseKey, playerName: string): void {
@@ -528,6 +665,9 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         getGame,
         getMySession,
         savePrediction,
+        savePredictions,
+        overridePrediction,
+        overridePredictions,
         saveScorerSelection,
         openPhase,
         lockPhase,

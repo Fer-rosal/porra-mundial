@@ -1,14 +1,16 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import MatchCard from '@/components/MatchCard';
-import { useState } from 'react';
 
 export default function PredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, savePrediction } = useGameStore();
-  const [predictions, setPredictions] = useState<Record<string, [number, number]>>({});
+  const { getGame, getMySession, savePredictions } = useGameStore();
+
+  // Checkbox-driven partial save state
+  const [checkedMatches, setCheckedMatches] = useState<Set<string>>(new Set());
+  const [pendingScores, setPendingScores] = useState<Map<string, [number, number]>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -43,37 +45,57 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
     ? game.matches.filter((m) => m.phaseKey === activePhaseKey)
     : [];
 
-  // Pre-fill from existing predictions for this session
-  const existingPredictions = game.predictions.filter((p) => p.sessionId === mySession.sessionId)
-  const predictionsByMatchId: Record<string, [number, number]> = {}
-  for (const pred of existingPredictions) {
-    predictionsByMatchId[pred.matchId] = [pred.homeGoalsPredicted, pred.awayGoalsPredicted]
-  }
+  // Derived from store on every render — not state
+  const existingPredictions = new Map(
+    game.predictions
+      .filter((p) => p.sessionId === mySession.sessionId)
+      .map((p) => [p.matchId, [p.homeGoalsPredicted, p.awayGoalsPredicted] as [number, number]])
+  );
+
+  const handleCheck = (matchId: string, isChecked: boolean) => {
+    setCheckedMatches((prev) => {
+      const next = new Set(prev);
+      if (isChecked) {
+        next.add(matchId);
+      } else {
+        next.delete(matchId);
+      }
+      return next;
+    });
+  };
 
   const handleScoreChange = (matchId: string, home: number, away: number) => {
-    setPredictions((prev) => ({
-      ...prev,
-      [matchId]: [home, away],
-    }));
+    setPendingScores((prev) => {
+      const next = new Map(prev);
+      next.set(matchId, [home, away]);
+      return next;
+    });
   };
 
   const handleSubmit = () => {
     setError(null);
-    if (Object.keys(predictions).length === 0) {
-      setError('No predictions entered. Please fill in at least one score.');
+
+    // Belt-and-suspenders guard (button is already disabled, but defensive check)
+    if (checkedMatches.size === 0) {
+      setError('Select at least one match to save.');
       return;
     }
+
     try {
-      for (const [matchId, [home, away]] of Object.entries(predictions)) {
-        savePrediction(gameId, {
-          matchId,
-          homeGoalsPredicted: home,
-          awayGoalsPredicted: away,
-        });
-      }
+      // Batch save — single persist() call avoids stale-closure issues
+      const payloads = Array.from(checkedMatches).map((matchId) => {
+        const pending = pendingScores.get(matchId);
+        const [home, away] = pending ?? [0, 0];
+        return { matchId, homeGoalsPredicted: home, awayGoalsPredicted: away };
+      });
+      savePredictions(gameId, payloads);
+
+      // Clear transient state
+      setCheckedMatches(new Set());
+      setPendingScores(new Map());
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      setPredictions({});
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save predictions');
     }
@@ -83,16 +105,10 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
     <div className="space-y-8" data-testid="predictions-page">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Make Your Predictions</h1>
-        {activePhaseKey ? (
+        {activePhaseKey && (
           <p className="mt-2 text-gray-600">
             Phase: <span className="font-semibold">{activePhaseKey}</span> — Submit before it closes.
           </p>
-        ) : lockedPhase ? (
-          <p className="mt-2 text-gray-600">
-            This phase is locked. Predictions are no longer accepted.
-          </p>
-        ) : (
-          <p className="mt-2 text-gray-600">Waiting for a phase to open...</p>
         )}
       </div>
 
@@ -121,14 +137,35 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
 
       {activePhaseKey && activeMatches.length > 0 && (
         <>
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="predictions-list">
             {activeMatches.map((match) => {
-              // Merge saved predictions with unsaved changes
-              const pending = predictions[match.id]
-              const existing = predictionsByMatchId[match.id]
-              const homeVal = pending?.[0] ?? existing?.[0]
-              const awayVal = pending?.[1] ?? existing?.[1]
+              const isSaved = existingPredictions.has(match.id);
 
+              if (isSaved) {
+                // Mode A — already saved: read-only with Saved badge
+                const [savedHome, savedAway] = existingPredictions.get(match.id)!;
+                return (
+                  <MatchCard
+                    key={match.id}
+                    match={{
+                      id: match.id,
+                      match_number: match.matchNumber,
+                      home_team: match.homeTeam,
+                      away_team: match.awayTeam,
+                      scheduled_at: match.scheduledAt,
+                      result_entered: match.resultEntered,
+                      home_goals: match.homeGoals ?? undefined,
+                      away_goals: match.awayGoals ?? undefined,
+                    }}
+                    readOnly={true}
+                    savedBadge={true}
+                    homeGoalsPredicted={savedHome}
+                    awayGoalsPredicted={savedAway}
+                  />
+                );
+              }
+
+              // Mode B — not yet saved: checkbox-driven editable
               return (
                 <MatchCard
                   key={match.id}
@@ -143,9 +180,11 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
                     away_goals: match.awayGoals ?? undefined,
                   }}
                   editable={true}
+                  checked={checkedMatches.has(match.id)}
+                  onCheckedChange={(c) => handleCheck(match.id, c)}
                   onScoreChange={(home, away) => handleScoreChange(match.id, home, away)}
-                  homeGoalsPredicted={homeVal}
-                  awayGoalsPredicted={awayVal}
+                  homeGoalsPredicted={pendingScores.get(match.id)?.[0] ?? 0}
+                  awayGoalsPredicted={pendingScores.get(match.id)?.[1] ?? 0}
                 />
               );
             })}
@@ -153,7 +192,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
 
           <button
             onClick={handleSubmit}
-            disabled={Object.keys(predictions).length === 0}
+            disabled={checkedMatches.size === 0}
             className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
             data-testid="predictions-submit-btn"
           >

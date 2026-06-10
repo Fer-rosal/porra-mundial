@@ -18,7 +18,10 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
 
   if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
     return (
-      <div className="text-red-600" data-testid="admin-access-denied">
+      <div
+        className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700"
+        data-testid="admin-access-denied"
+      >
         Access denied. Only the game creator can access the admin panel.
       </div>
     );
@@ -107,6 +110,15 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
         >
           <h3 className="text-lg font-semibold text-gray-900">Manage Matches</h3>
           <p className="mt-1 text-gray-600">Edit team names for knockout rounds</p>
+        </Link>
+
+        <Link
+          href={`/games/${gameId}/admin/predictions`}
+          className="rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow"
+          data-testid="admin-edit-predictions-card"
+        >
+          <h3 className="text-lg font-semibold text-gray-900">Edit Predictions</h3>
+          <p className="mt-1 text-gray-600">Override any player&apos;s prediction</p>
         </Link>
       </div>
     </div>
