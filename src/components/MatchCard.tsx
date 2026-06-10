@@ -9,6 +9,11 @@ interface MatchCardProps {
   onScoreChange?: (homeGoals: number, awayGoals: number) => void;
   homeGoalsPredicted?: number;
   awayGoalsPredicted?: number;
+  // New props for predictions form
+  checked?: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+  readOnly?: boolean;
+  savedBadge?: boolean;
 }
 
 export default function MatchCard({
@@ -17,6 +22,10 @@ export default function MatchCard({
   onScoreChange,
   homeGoalsPredicted,
   awayGoalsPredicted,
+  checked,
+  onCheckedChange,
+  readOnly = false,
+  savedBadge = false,
 }: MatchCardProps) {
   const [home, setHome] = useState(homeGoalsPredicted ?? 0);
   const [away, setAway] = useState(awayGoalsPredicted ?? 0);
@@ -35,11 +44,43 @@ export default function MatchCard({
 
   const resultEntered = match.result_entered && match.home_goals !== undefined;
 
+  // Checkbox is shown when new props are used (readOnly OR onCheckedChange is provided)
+  const showCheckbox = readOnly || onCheckedChange !== undefined || checked !== undefined;
+
+  // When readOnly: scores shown as text; when unchecked: inputs disabled + opacity-50; when checked: inputs active
+  // If checkbox UI is not shown (showCheckbox=false), inputs are always enabled when editable.
+  const inputsDisabled = readOnly || (showCheckbox && !readOnly && !checked);
+  const inputsOpacity = showCheckbox && !readOnly && !checked ? 'opacity-50' : '';
+
   return (
     <div
       className="rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow"
       data-testid={`match-card-${match.id}`}
     >
+      {/* Checkbox row — only shown when new props are in use */}
+      {showCheckbox && (
+        <div className="mb-3 flex items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-2 min-h-[44px]">
+            <input
+              type="checkbox"
+              className="h-4 w-4 flex-shrink-0 accent-orange-500"
+              checked={readOnly ? false : (checked ?? false)}
+              disabled={readOnly}
+              onChange={(e) => onCheckedChange?.(e.target.checked)}
+              data-testid={`match-checkbox-${match.id}`}
+            />
+            {savedBadge && (
+              <span
+                className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+                data-testid={`match-saved-badge-${match.id}`}
+              >
+                Saved
+              </span>
+            )}
+          </label>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between gap-4">
         {/* Home team */}
         <div className="flex-1">
@@ -49,7 +90,12 @@ export default function MatchCard({
 
         {/* Score */}
         <div className="flex flex-col items-center gap-2">
-          {editable ? (
+          {readOnly ? (
+            // readOnly: show saved scores as plain text
+            <div className="text-2xl font-bold text-gray-900" data-testid={`match-readonly-score-${match.id}`}>
+              {homeGoalsPredicted ?? 0} : {awayGoalsPredicted ?? 0}
+            </div>
+          ) : editable ? (
             <div className="flex gap-2 items-center">
               <input
                 type="number"
@@ -57,7 +103,8 @@ export default function MatchCard({
                 max="99"
                 value={home}
                 onChange={handleHomeChange}
-                className="w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none"
+                disabled={inputsDisabled}
+                className={`w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-home-input-${match.id}`}
               />
               <span className="text-lg font-bold text-gray-400">:</span>
@@ -67,7 +114,8 @@ export default function MatchCard({
                 max="99"
                 value={away}
                 onChange={handleAwayChange}
-                className="w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none"
+                disabled={inputsDisabled}
+                className={`w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-away-input-${match.id}`}
               />
             </div>
@@ -88,7 +136,7 @@ export default function MatchCard({
         </div>
       </div>
 
-      {resultEntered && (
+      {resultEntered && !readOnly && (
         <div className="border-t border-gray-200 pt-3 text-center">
           <p className="text-xs font-semibold text-green-700">Result Entered</p>
         </div>

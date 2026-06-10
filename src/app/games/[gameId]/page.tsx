@@ -2,14 +2,16 @@
 
 import { use } from 'react';
 import { useGameStore } from '@/lib/game-store';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Download } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 
 export default function GameOverviewPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession } = useGameStore();
+  const { getGame, getMySession, exportGame } = useGameStore();
   const [codeCopied, setCodeCopied] = useState(false);
+  const [exportCode, setExportCode] = useState<string | null>(null);
+  const [exportCopied, setExportCopied] = useState(false);
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
@@ -28,6 +30,22 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
     await navigator.clipboard.writeText(inviteLink);
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleExport = () => {
+    try {
+      const code = exportGame(gameId);
+      setExportCode(code);
+    } catch {
+      // game not found — shouldn't happen here
+    }
+  };
+
+  const copyExportCode = async () => {
+    if (!exportCode) return;
+    await navigator.clipboard.writeText(exportCode);
+    setExportCopied(true);
+    setTimeout(() => setExportCopied(false), 2000);
   };
 
   // Find currently open phase
@@ -153,6 +171,53 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
           </Link>
         </div>
       )}
+
+      {/* Export section */}
+      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
+        <h2 className="mb-2 text-xl font-bold text-gray-900">Take Game to Another Browser</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Export your game data so you (or another player) can load it in a different browser.
+        </p>
+        {!exportCode ? (
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 font-semibold text-white hover:bg-gray-900"
+            data-testid="game-export-btn"
+          >
+            <Download size={16} />
+            Generate Export Code
+          </button>
+        ) : (
+          <div className="space-y-3" data-testid="game-export-section">
+            <textarea
+              readOnly
+              value={exportCode}
+              rows={4}
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-700"
+              data-testid="game-export-code"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={copyExportCode}
+                className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600"
+                data-testid="game-export-copy-btn"
+              >
+                {exportCopied ? <><Check size={16} />Copied!</> : <><Copy size={16} />Copy Code</>}
+              </button>
+              <button
+                onClick={() => setExportCode(null)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                data-testid="game-export-close-btn"
+              >
+                Close
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              On the other browser, go to <strong>/import</strong> and paste this code.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Rules section */}
       <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
