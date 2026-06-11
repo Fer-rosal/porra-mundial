@@ -101,7 +101,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               selectedPhase === phase
                 ? 'bg-orange-500 text-white'
-                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
             }`}
             data-testid={`admin-matches-phase-${phase}`}
           >
@@ -124,7 +124,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
         {phaseMatches.map((m) => (
           <div
             key={m.matchId}
-            className="rounded-lg border border-gray-200 p-4 shadow-sm"
+            className="glass-card rounded-lg p-4"
             data-testid={`admin-match-row-${m.matchId}`}
           >
             <div className="mb-2 flex items-center justify-between">
@@ -141,7 +141,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
                 value={edits[m.matchId]?.home ?? m.homeTeam}
                 onChange={(e) => handleChange(m.matchId, 'home', e.target.value)}
                 placeholder="Home team"
-                className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+                className="input-field flex-1 px-3 py-1.5 text-sm text-gray-900"
                 data-testid={`admin-match-${m.matchId}-home`}
               />
               <span className="font-bold text-gray-400">vs</span>
@@ -150,7 +150,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
                 value={edits[m.matchId]?.away ?? m.awayTeam}
                 onChange={(e) => handleChange(m.matchId, 'away', e.target.value)}
                 placeholder="Away team"
-                className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 focus:border-orange-500 focus:outline-none"
+                className="input-field flex-1 px-3 py-1.5 text-sm text-gray-900"
                 data-testid={`admin-match-${m.matchId}-away`}
               />
             </div>
@@ -166,7 +166,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
+          className="btn-primary flex items-center gap-2 rounded-lg px-6 py-2 disabled:opacity-50"
           data-testid="admin-matches-save-btn"
         >
           {isSaving && (
@@ -176,7 +176,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
         </button>
         <button
           onClick={() => router.back()}
-          className="rounded-lg border border-gray-300 px-6 py-2 font-semibold text-gray-900 hover:bg-gray-50"
+          className="btn-secondary rounded-lg px-6 py-2"
         >
           Back
         </button>

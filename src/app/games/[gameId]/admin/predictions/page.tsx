@@ -111,7 +111,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
       </div>
 
       {/* Phase selector */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
+      <div className="glass-card rounded-lg p-6">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">Select Phase</h2>
         <div className="flex flex-wrap gap-2" data-testid="admin-predictions-phase-selector">
           {PHASE_OPTIONS.map((phase) => (
@@ -121,7 +121,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 selectedPhase === phase
                   ? 'bg-orange-500 text-white'
-                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
               }`}
               data-testid={`admin-predictions-phase-${phase}`}
             >
@@ -132,7 +132,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
       </div>
 
       {/* Player selector */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
+      <div className="glass-card rounded-lg p-6">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">Select Player</h2>
         <div className="flex flex-wrap gap-2" data-testid="admin-predictions-player-selector">
           {game.players.map((player) => (
@@ -142,7 +142,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                 effectiveSessionId === player.sessionId
                   ? 'bg-orange-500 text-white'
-                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
               }`}
               data-testid={`admin-predictions-player-${player.sessionId}`}
             >
@@ -205,7 +205,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
           <button
             onClick={handleSaveOverride}
             disabled={isSaving}
-            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            className="btn-primary flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 disabled:opacity-50"
             data-testid="admin-predictions-save-btn"
           >
             {isSaving && (
@@ -216,7 +216,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
         </>
       ) : (
         <div
-          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="glass-card rounded-lg p-8 text-center text-gray-600"
           data-testid="admin-predictions-empty"
         >
           No matches found for phase {selectedPhase}.

@@ -37,7 +37,7 @@ export default function CopyRecoveryLink({ href, label = 'Copy your recovery lin
   return (
     <button
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all duration-150"
+      className="btn-secondary inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm"
       data-testid="copy-recovery-link-btn"
       aria-label={label}
     >

@@ -54,7 +54,7 @@ export default function MatchCard({
 
   return (
     <div
-      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+      className="glass-card rounded-xl p-4"
       data-testid={`match-card-${match.id}`}
     >
       {/* Checkbox row — only shown when new props are in use */}
@@ -104,7 +104,7 @@ export default function MatchCard({
                 value={home}
                 onChange={handleHomeChange}
                 disabled={inputsDisabled}
-                className={`w-12 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
+                className={`w-12 rounded-lg border border-orange-200 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-home-input-${match.id}`}
               />
               <span className="text-xl font-bold text-gray-300">:</span>
@@ -115,7 +115,7 @@ export default function MatchCard({
                 value={away}
                 onChange={handleAwayChange}
                 disabled={inputsDisabled}
-                className={`w-12 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
+                className={`w-12 rounded-lg border border-orange-200 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-away-input-${match.id}`}
               />
             </div>

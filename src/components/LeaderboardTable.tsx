@@ -49,10 +49,10 @@ function RankBadge({ rank }: { rank: number }) {
 
 export default function LeaderboardTable({ entries, currentSessionId }: LeaderboardTableProps) {
   return (
-    <div className="overflow-x-auto" data-testid="leaderboard-table">
+    <div className="glass-card overflow-x-auto rounded-xl" data-testid="leaderboard-table">
       <table className="w-full border-collapse">
         <thead>
-          <tr className="border-b-2 border-gray-200 bg-gray-50">
+          <tr className="border-b-2 border-orange-100 bg-orange-50/60">
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Player</th>
             {PHASE_ORDER.map((phase) => (
@@ -72,7 +72,7 @@ export default function LeaderboardTable({ entries, currentSessionId }: Leaderbo
                 className={`border-b border-gray-100 transition-colors ${
                   isCurrentPlayer
                     ? 'bg-orange-50 hover:bg-orange-100'
-                    : 'hover:bg-gray-50'
+                    : 'hover:bg-orange-50/40'
                 }`}
                 data-testid={`leaderboard-row-${entry.sessionId}`}
               >

@@ -80,7 +80,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
       </div>
 
       {/* Phase selector */}
-      <div className="rounded-xl border border-gray-200 p-5 shadow-sm">
+      <div className="glass-card rounded-xl p-5">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Select Phase</h2>
         <div className="flex flex-wrap gap-2">
           {PHASE_OPTIONS.map((phase) => {
@@ -92,7 +92,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 ${
                   selectedPhase === phase
                     ? 'bg-orange-500 text-white'
-                    : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
                 }`}
                 data-testid={`admin-phase-${phase}`}
               >
@@ -119,7 +119,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href={`/games/${gameId}/admin/results`}
-          className="rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card rounded-xl p-5"
           data-testid="admin-enter-results-card"
         >
           <h3 className="text-base font-semibold text-gray-900">Enter Results</h3>
@@ -128,7 +128,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
 
         <Link
           href={`/games/${gameId}/admin/scorer-points`}
-          className="rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card rounded-xl p-5"
           data-testid="admin-scorer-points-card"
         >
           <h3 className="text-base font-semibold text-gray-900">Scorer Points</h3>
@@ -137,7 +137,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
 
         <Link
           href={`/games/${gameId}/admin/history`}
-          className="rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card rounded-xl p-5"
           data-testid="admin-history-card"
         >
           <h3 className="text-base font-semibold text-gray-900">History</h3>
@@ -146,7 +146,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
 
         <Link
           href={`/games/${gameId}/admin/matches?phase=${selectedPhase}`}
-          className="rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card rounded-xl p-5"
           data-testid="admin-manage-matches-card"
         >
           <h3 className="text-base font-semibold text-gray-900">Manage Matches</h3>
@@ -155,7 +155,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
 
         <Link
           href={`/games/${gameId}/admin/predictions`}
-          className="rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
+          className="glass-card rounded-xl p-5"
           data-testid="admin-edit-predictions-card"
         >
           <h3 className="text-base font-semibold text-gray-900">Edit Predictions</h3>

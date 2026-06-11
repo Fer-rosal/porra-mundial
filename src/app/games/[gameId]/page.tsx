@@ -62,7 +62,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
   return (
     <div className="space-y-6" data-testid="game-overview-page">
       {/* Game status */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="glass-card rounded-xl p-5">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Game Status</h2>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -95,17 +95,17 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Invite section — visible to all players */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" data-testid="game-invite-section">
+      <div className="glass-card rounded-xl p-5" data-testid="game-invite-section">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Invite Players</h2>
         <p className="mb-4 text-gray-600">
           Share this code with players to let them join the game:
         </p>
-        <div className="mb-3 rounded-xl bg-gray-50 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-gray-900">
+        <div className="invite-code mb-3 rounded-xl px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-gray-900">
           {game.inviteCode}
         </div>
         <button
           onClick={copyInviteCode}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+          className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5"
           data-testid="game-copy-invite-btn"
         >
           {codeCopied ? (
@@ -123,7 +123,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Players list */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="glass-card rounded-xl p-5">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Players</h2>
         {game.players.length === 0 ? (
           <p className="text-gray-600" data-testid="game-players-empty">No players yet</p>
@@ -171,7 +171,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
           <p className="mb-4 text-orange-700">Open phases, lock predictions, and enter results.</p>
           <Link
             href={`/games/${gameId}/admin`}
-            className="inline-block rounded-xl bg-orange-500 px-6 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+            className="btn-primary inline-block rounded-xl px-6 py-2.5"
             data-testid="game-overview-admin-link"
           >
             Go to Admin Panel
@@ -191,7 +191,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
           </p>
           <button
             onClick={handleReclaimAdmin}
-            className="rounded-xl bg-orange-500 px-6 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+            className="btn-primary rounded-xl px-6 py-2.5"
             data-testid="game-reclaim-admin-btn"
           >
             Reclaim Admin Access
@@ -200,7 +200,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       )}
 
       {/* Export section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="glass-card rounded-xl p-5">
         <h2 className="mb-2 text-base font-semibold text-gray-900">Take Game to Another Browser</h2>
         <p className="mb-4 text-sm text-gray-600">
           Export your game data so you (or another player) can load it in a different browser.
@@ -208,7 +208,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
         {!exportCode ? (
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2.5 font-semibold text-white hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 active:scale-95 transition-all"
+            className="btn-secondary flex items-center gap-2 rounded-xl px-4 py-2.5"
             data-testid="game-export-btn"
           >
             <Download size={16} />
@@ -226,14 +226,14 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
             <div className="flex gap-2">
               <button
                 onClick={copyExportCode}
-                className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+                className="btn-primary flex items-center gap-2 rounded-xl px-4 py-2"
                 data-testid="game-export-copy-btn"
               >
                 {exportCopied ? <><Check size={16} />Copied!</> : <><Copy size={16} />Copy Code</>}
               </button>
               <button
                 onClick={() => setExportCode(null)}
-                className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+                className="btn-secondary rounded-xl px-4 py-2 text-sm"
                 data-testid="game-export-close-btn"
               >
                 Close
@@ -247,7 +247,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Rules section */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="glass-card rounded-xl p-5">
         <h2 className="mb-4 text-base font-semibold text-gray-900">How to Play</h2>
         <div className="space-y-4 text-gray-600">
           <div>

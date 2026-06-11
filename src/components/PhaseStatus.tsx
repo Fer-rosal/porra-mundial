@@ -30,7 +30,7 @@ export default function PhaseStatus({ phase }: PhaseStatusProps) {
 
   return (
     <span
-      className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${colorClasses[statusColor]}`}
+      className={`status-pill inline-block ${colorClasses[statusColor]}`}
       data-testid="phase-status"
     >
       {statusText}

@@ -77,15 +77,15 @@ export function JoinContent() {
         : '';
 
     return (
-      <div className="min-h-screen bg-white" data-testid="join-success-page">
-        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="mb-8 text-center">
+      <div className="min-h-screen" data-testid="join-success-page">
+        <div className="page-shell max-w-2xl sm:px-6 lg:px-8">
+          <div className="page-hero mb-8 text-center">
             <div className="mb-4 text-5xl">🎉</div>
             <h1 className="text-3xl font-bold text-gray-900">You&apos;re in!</h1>
             <p className="mt-2 text-gray-600">Welcome to the game</p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 p-5 shadow-sm space-y-5" data-testid="join-success-card">
+          <div className="glass-card space-y-5 rounded-xl p-5" data-testid="join-success-card">
             {/* Recovery link section */}
             <div className="rounded-xl border border-orange-200 bg-orange-50 p-4" data-testid="join-recovery-link-section">
               <p className="mb-1 text-sm font-semibold text-orange-900">Your Recovery Link</p>
@@ -106,7 +106,7 @@ export function JoinContent() {
 
             <Link
               href={`/games/${joinSuccess.gameId}`}
-              className="block w-full rounded-xl bg-orange-500 px-6 py-3 text-center font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+              className="btn-primary block w-full rounded-xl px-6 py-3 text-center"
               data-testid="join-success-continue-btn"
             >
               Continue to game
@@ -118,14 +118,14 @@ export function JoinContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white" data-testid="join-page">
-      <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mb-8 text-center">
+    <div className="min-h-screen" data-testid="join-page">
+      <div className="page-shell max-w-2xl sm:px-6 lg:px-8">
+        <div className="page-hero mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-900">Join a Game</h1>
           <p className="mt-2 text-gray-600">Enter the invite code from your friend</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6" data-testid="join-form">
+        <form onSubmit={handleSubmit} className="glass-card space-y-6 p-6" data-testid="join-form">
           {/* Error message */}
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" data-testid="join-error">
@@ -144,7 +144,7 @@ export function JoinContent() {
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
               placeholder="e.g., ABC1234"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-center text-lg font-mono tracking-widest text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="input-field mt-1 px-4 py-2 text-center text-lg font-mono tracking-widest text-gray-900"
               data-testid="join-code-input"
               maxLength={7}
             />
@@ -161,7 +161,7 @@ export function JoinContent() {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="e.g., Alex"
-              className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+              className="input-field mt-1 px-4 py-2 text-gray-900"
               data-testid="join-name-input"
               maxLength={50}
             />
@@ -172,7 +172,7 @@ export function JoinContent() {
             <button
               type="submit"
               disabled={isJoining}
-              className="flex-1 rounded-xl bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all flex items-center justify-center gap-2"
+              className="btn-primary flex flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
               data-testid="join-submit-btn"
             >
               {isJoining && (
@@ -183,7 +183,7 @@ export function JoinContent() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="rounded-xl border border-gray-300 px-6 py-2 font-semibold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+              className="btn-secondary rounded-xl px-6 py-2"
               data-testid="join-cancel-btn"
             >
               Cancel

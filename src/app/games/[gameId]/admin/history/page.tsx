@@ -71,7 +71,7 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
 
       {game.predictions.length === 0 ? (
         <div
-          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="glass-card rounded-xl p-8 text-center text-gray-600"
           data-testid="history-empty"
         >
           No predictions submitted yet.
@@ -79,9 +79,9 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
       ) : (
         <div>
           <h2 className="mb-4 text-base font-semibold text-gray-900">Predictions</h2>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <div className="glass-card overflow-x-auto rounded-xl">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-orange-50/60">
                 <tr>
                   <th className="px-4 py-2 text-left font-semibold text-gray-900">Player</th>
                   <th className="px-4 py-2 text-left font-semibold text-gray-900">Phase</th>
@@ -95,7 +95,7 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
                   const match = matchById[pred.matchId];
                   if (!match) return null;
                   return (
-                    <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={idx} className="border-b border-gray-100 hover:bg-orange-50/40">
                       <td className="px-4 py-2">{playerById[pred.sessionId] || 'Unknown'}</td>
                       <td className="px-4 py-2 text-gray-500">{match.phaseKey}</td>
                       <td className="px-4 py-2">{match.homeTeam} vs {match.awayTeam}</td>
@@ -117,9 +117,9 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
       {game.scorerSelections.length > 0 && (
         <div>
           <h2 className="mb-4 text-base font-semibold text-gray-900">Scorer Selections</h2>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
+          <div className="glass-card overflow-x-auto rounded-xl">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-orange-50/60">
                 <tr>
                   <th className="px-4 py-2 text-left font-semibold text-gray-900">Player</th>
                   <th className="px-4 py-2 text-left font-semibold text-gray-900">Phase</th>
@@ -129,7 +129,7 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
               </thead>
               <tbody>
                 {game.scorerSelections.map((sel, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={idx} className="border-b border-gray-100 hover:bg-orange-50/40">
                     <td className="px-4 py-2">{playerById[sel.sessionId] || 'Unknown'}</td>
                     <td className="px-4 py-2 text-gray-500">{sel.phaseKey}</td>
                     <td className="px-4 py-2">{sel.playerName}</td>
@@ -150,7 +150,7 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
 
       <button
         onClick={handleExportCSV}
-        className="rounded-xl bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+        className="btn-primary rounded-xl px-6 py-2"
         data-testid="history-export-btn"
       >
         Export to CSV

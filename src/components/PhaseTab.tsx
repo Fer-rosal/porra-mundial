@@ -13,16 +13,16 @@ interface PhaseTabProps {
 
 export default function PhaseTab({ phases, currentPhase, gameId, activeTab }: PhaseTabProps) {
   return (
-    <div className="border-b border-gray-200">
+    <div className="border-b border-orange-100">
       <div className="flex gap-2 overflow-x-auto px-4" data-testid="phase-tab">
         {phases.map((phase) => (
           <Link
             key={phase}
             href={`/games/${gameId}?phase=${phase}`}
-            className={`whitespace-nowrap px-4 py-3 font-medium border-b-2 transition-colors ${
+            className={`whitespace-nowrap rounded-t-xl px-4 py-3 font-medium border-b-2 transition-colors ${
               activeTab === phase
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-600 hover:text-gray-900'
+                ? 'border-orange-500 bg-orange-50 text-orange-700'
+                : 'border-transparent text-gray-600 hover:bg-orange-50 hover:text-orange-700'
             }`}
             data-testid={`phase-tab-${phase}`}
           >
