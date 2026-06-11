@@ -9,6 +9,16 @@ const PHASE_MULTIPLIER: Record<PhaseKey, number> = {
   FINAL: 3,
 }
 
+export interface PlayerPointsLogEntry {
+  id: string
+  phaseKey: PhaseKey
+  source: 'prediction' | 'scorer'
+  label: string
+  basePoints: number
+  multiplier: number
+  awardedPoints: number
+}
+
 function getOutcome(home: number, away: number): 'home' | 'draw' | 'away' {
   if (home > away) return 'home'
   if (away > home) return 'away'
@@ -100,4 +110,62 @@ export function calculateLeaderboard(game: LocalGame): LeaderboardEntry[] {
       } satisfies LeaderboardEntry
     })
     .sort((a, b) => b.totalScore - a.totalScore)
+}
+
+export function calculatePlayerPointsLog(game: LocalGame, sessionId: string): PlayerPointsLogEntry[] {
+  const entries: PlayerPointsLogEntry[] = []
+  const allPhaseKeys: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL']
+
+  for (const phaseKey of allPhaseKeys) {
+    const multiplier = PHASE_MULTIPLIER[phaseKey]
+    const matchesInPhase = game.matches
+      .filter((m) => m.phaseKey === phaseKey && m.resultEntered)
+      .sort((a, b) => a.matchNumber - b.matchNumber)
+
+    for (const match of matchesInPhase) {
+      const prediction = game.predictions.find(
+        (p) => p.sessionId === sessionId && p.matchId === match.id
+      )
+      if (!prediction) continue
+
+      const basePoints = calculatePredictionPoints(
+        prediction.homeGoalsPredicted,
+        prediction.awayGoalsPredicted,
+        match.homeGoals as number,
+        match.awayGoals as number
+      )
+
+      if (basePoints === 0) continue
+
+      entries.push({
+        id: `pred-${match.id}`,
+        phaseKey,
+        source: 'prediction',
+        label: `Match ${match.matchNumber}: ${match.homeTeam} vs ${match.awayTeam}`,
+        basePoints,
+        multiplier,
+        awardedPoints: basePoints * multiplier,
+      })
+    }
+
+    const scorerSelection = game.scorerSelections.find(
+      (s) => s.phaseKey === phaseKey && s.sessionId === sessionId
+    )
+    if (scorerSelection && scorerSelection.isLocked) {
+      const basePoints = Math.max(0, scorerSelection.goalsScored ?? 0)
+      if (basePoints > 0) {
+        entries.push({
+          id: `scorer-${scorerSelection.id}`,
+          phaseKey,
+          source: 'scorer',
+          label: `Scorer: ${scorerSelection.playerName}`,
+          basePoints,
+          multiplier,
+          awardedPoints: basePoints * multiplier,
+        })
+      }
+    }
+  }
+
+  return entries
 }

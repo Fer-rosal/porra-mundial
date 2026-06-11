@@ -17,6 +17,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
@@ -56,6 +57,14 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   const activeMatches = activePhaseKey
     ? game.matches.filter((m) => m.phaseKey === activePhaseKey)
     : [];
+  const searchTerm = teamSearch.trim().toLowerCase();
+  const filteredMatches = activeMatches.filter((m) => {
+    if (!searchTerm) return true;
+    return (
+      m.homeTeam.toLowerCase().includes(searchTerm)
+      || m.awayTeam.toLowerCase().includes(searchTerm)
+    );
+  });
   const blockedCount = activeMatches.filter((m) => m.predictionsLocked).length;
 
   // Derived from store on every render — not state
@@ -136,6 +145,20 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
             />
           </div>
         )}
+        <div className="mt-4 max-w-md">
+          <label htmlFor="predictions-team-search" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Search Team
+          </label>
+          <input
+            id="predictions-team-search"
+            type="text"
+            value={teamSearch}
+            onChange={(e) => setTeamSearch(e.target.value)}
+            placeholder="Type home or away team"
+            className="w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm text-gray-900"
+            data-testid="predictions-team-search"
+          />
+        </div>
       </div>
 
       {!activePhaseKey && (
@@ -167,10 +190,10 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
         </div>
       )}
 
-      {activePhaseKey && activeMatches.length > 0 && (
+      {activePhaseKey && filteredMatches.length > 0 && (
         <>
           <div className="space-y-4" data-testid="predictions-list">
-            {activeMatches.map((match) => {
+            {filteredMatches.map((match) => {
               const prediction = existingPredictions.get(match.id);
               const isSaved = Boolean(prediction);
               const hasResult = match.resultEntered && match.homeGoals !== null && match.awayGoals !== null;
@@ -250,6 +273,12 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
             {isSaving ? 'Saving...' : 'Save Predictions'}
           </button>
         </>
+      )}
+
+      {activePhaseKey && filteredMatches.length === 0 && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-center text-gray-600" data-testid="predictions-empty-search">
+          No matches found for this team search.
+        </div>
       )}
     </div>
   );
