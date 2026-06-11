@@ -17,6 +17,7 @@ import type {
   DbMatch,
   DbPrediction,
   DbScorerSelection,
+  DbWinnerPick,
   DbGameActionLog,
 } from './types'
 
@@ -81,6 +82,16 @@ export interface LocalScorerSelection {
   updatedAt: string
 }
 
+export interface LocalWinnerPick {
+  id: string
+  sessionId: string
+  teamName: string
+  awardedPoints: number
+  isLocked: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface LocalGame {
   id: string
   name: string
@@ -95,6 +106,7 @@ export interface LocalGame {
   matches: LocalMatch[]
   predictions: LocalPrediction[]
   scorerSelections: LocalScorerSelection[]
+  winnerPicks?: LocalWinnerPick[]
 }
 
 // LocalStore is kept for legacy banner detection only (the old localStorage shape)
@@ -209,7 +221,8 @@ function dbToLocalGame(
   matches: DbMatch[],
   players: DbGamePlayer[],
   preds: DbPrediction[],
-  scorers: DbScorerSelection[]
+  scorers: DbScorerSelection[],
+  winnerPicks: DbWinnerPick[]
 ): LocalGame {
   // Build a map from game_player.id → player for prediction/scorer lookup
   const playerById = new Map(players.map(p => [p.id, p]))
@@ -274,6 +287,18 @@ function dbToLocalGame(
         updatedAt:   s.updated_at,
       }
     }),
+    winnerPicks: winnerPicks.map(w => {
+      const pl = playerById.get(w.game_player_id)
+      return {
+        id:           w.id,
+        sessionId:    pl?.session_id ?? '',
+        teamName:     w.team_name,
+        awardedPoints: w.awarded_points,
+        isLocked:     w.is_locked,
+        createdAt:    w.created_at,
+        updatedAt:    w.updated_at,
+      }
+    }),
   }
 }
 
@@ -316,6 +341,7 @@ interface GameStoreContextValue {
   overridePrediction:  (gameId: string, targetSessionId: string, p: PredictionInput) => Promise<void>
   overridePredictions: (gameId: string, targetSessionId: string, ps: PredictionInput[]) => Promise<void>
   saveScorerSelection: (gameId: string, phaseKey: PhaseKey, playerName: string) => Promise<void>
+  saveWinnerPick:      (gameId: string, teamName: string) => Promise<void>
   openPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
   lockPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
   lockGame:            (gameId: string) => Promise<void>
@@ -459,13 +485,18 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       const { data: scorers } = await supabase
         .from('scorer_selections').select('*').in('game_player_id', playerIds)
 
+      // 7. winner picks
+      const { data: winnerPicks } = await supabase
+        .from('winner_picks').select('*').in('game_player_id', playerIds)
+
       const localGame = dbToLocalGame(
         gameRow as DbGame,
         (phases ?? []) as DbTournamentPhase[],
         (matchRows ?? []) as DbMatch[],
         (players ?? []) as DbGamePlayer[],
         (preds ?? []) as DbPrediction[],
-        (scorers ?? []) as DbScorerSelection[]
+        (scorers ?? []) as DbScorerSelection[],
+        (winnerPicks ?? []) as DbWinnerPick[]
       )
       setCachedGame(localGame)
       return localGame
@@ -928,6 +959,53 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     await fetchGame(gameId)
   }
 
+  async function saveWinnerPick(gameId: string, teamName: string): Promise<void> {
+    const mySessionId = getSessionId(gameId)
+    if (!mySessionId) return
+
+    const game = games[gameId]
+    if (game) {
+      const deadlinePassed = game.matches.some((m) => m.predictionsLocked || m.resultEntered)
+      if (deadlinePassed) {
+        throw new Error('Winner picks are closed after the first match is blocked or has a result.')
+      }
+      const existingPick = (game.winnerPicks ?? []).find((w) => w.sessionId === mySessionId)
+      if (existingPick) {
+        throw new Error('You already submitted a winner pick. It cannot be changed.')
+      }
+    }
+
+    const { data: player } = await supabase
+      .from('game_players')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('session_id', mySessionId)
+      .single()
+    if (!player) return
+
+    const now = new Date().toISOString()
+    const row = {
+      id:            generateUUID(),
+      game_player_id: (player as DbGamePlayer).id,
+      team_name:     teamName.trim(),
+      awarded_points: 0,
+      is_locked:     false,
+      created_at:    now,
+      updated_at:    now,
+    }
+
+    await supabase.from('winner_picks').upsert(row, {
+      onConflict: 'game_player_id',
+      ignoreDuplicates: true,
+    })
+
+    await safeLogGameAction(gameId, mySessionId, 'winner_pick_submitted', {
+      teamName: teamName.trim(),
+    })
+
+    await fetchGame(gameId)
+  }
+
   // ─── openPhase ──────────────────────────────────────────────────────────────
 
   async function openPhase(gameId: string, phaseKey: PhaseKey): Promise<void> {
@@ -1220,6 +1298,29 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // INSERT winner picks
+      if ((sourceGame.winnerPicks ?? []).length > 0) {
+        const winnerPickRows = (sourceGame.winnerPicks ?? [])
+          .map((w) => {
+            const newPlayerId = playerIdMap.get(w.sessionId)
+            if (!newPlayerId) return null
+            return {
+              id:            generateUUID(),
+              game_player_id: newPlayerId,
+              team_name:     w.teamName,
+              awarded_points: w.awardedPoints ?? 0,
+              is_locked:     w.isLocked,
+              created_at:    w.createdAt,
+              updated_at:    w.updatedAt,
+            }
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null)
+
+        if (winnerPickRows.length > 0) {
+          await supabase.from('winner_picks').insert(winnerPickRows)
+        }
+      }
+
       // Persist localStorage keys
       if (data.sessionId && typeof window !== 'undefined') {
         localStorage.setItem(`porra_mundial_session_${gameId}`, data.sessionId)
@@ -1313,6 +1414,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         overridePrediction,
         overridePredictions,
         saveScorerSelection,
+        saveWinnerPick,
         openPhase,
         lockPhase,
         lockGame,

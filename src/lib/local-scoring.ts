@@ -12,7 +12,7 @@ const PHASE_MULTIPLIER: Record<PhaseKey, number> = {
 export interface PlayerPointsLogEntry {
   id: string
   phaseKey: PhaseKey
-  source: 'prediction' | 'scorer'
+  source: 'prediction' | 'scorer' | 'winner_bonus'
   label: string
   basePoints: number
   multiplier: number
@@ -100,7 +100,12 @@ export function calculateLeaderboard(game: LocalGame): LeaderboardEntry[] {
         phaseScores[phaseKey] = (predictionPoints + scorerPoints) * multiplier
       }
 
-      const totalScore = Object.values(phaseScores).reduce((sum, s) => sum + s, 0)
+      const winnerBonus = (game.winnerPicks ?? []).find(
+        (w) => w.sessionId === player.sessionId && w.isLocked
+      )
+      const winnerBonusPoints = winnerBonus?.awardedPoints ?? 0
+
+      const totalScore = Object.values(phaseScores).reduce((sum, s) => sum + s, 0) + winnerBonusPoints
 
       return {
         sessionId: player.sessionId,
@@ -165,6 +170,21 @@ export function calculatePlayerPointsLog(game: LocalGame, sessionId: string): Pl
         })
       }
     }
+  }
+
+  const winnerBonus = (game.winnerPicks ?? []).find(
+    (w) => w.sessionId === sessionId && w.isLocked
+  )
+  if (winnerBonus && (winnerBonus.awardedPoints ?? 0) > 0) {
+    entries.push({
+      id: `winner-${winnerBonus.id}`,
+      phaseKey: 'FINAL',
+      source: 'winner_bonus',
+      label: `Winner pick: ${winnerBonus.teamName}`,
+      basePoints: winnerBonus.awardedPoints,
+      multiplier: 1,
+      awardedPoints: winnerBonus.awardedPoints,
+    })
   }
 
   return entries

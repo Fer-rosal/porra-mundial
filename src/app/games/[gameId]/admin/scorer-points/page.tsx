@@ -23,6 +23,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
+  const [awardingWinnerId, setAwardingWinnerId] = useState<string | null>(null);
 
   const game = getGame(gameId);
 
@@ -41,6 +42,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
 
   // Find player name by sessionId
   const playerById = Object.fromEntries(game.players.map((p) => [p.sessionId, p.name]));
+  const winnerPicks = game.winnerPicks ?? [];
 
   const resolveGoalsScored = (selectionId: string): number => {
     const raw = goalsBySelection[selectionId];
@@ -94,6 +96,39 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
       ...prev,
       [selectionId]: Number.isNaN(parsed) ? 0 : Math.max(0, parsed),
     }));
+  };
+
+  const handleAwardWinnerBonus = async (winnerPickId: string) => {
+    setError(null);
+    setAwardingWinnerId(winnerPickId);
+    try {
+      const creatorKey = `porra_mundial_creator_${gameId}`;
+      const creatorSessionId =
+        typeof window !== 'undefined' ? localStorage.getItem(creatorKey) ?? '' : '';
+      const client = supabaseWithSession(creatorSessionId);
+
+      const { error: updateErr } = await client
+        .from('winner_picks')
+        .update({
+          is_locked: true,
+          awarded_points: 10,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', winnerPickId);
+
+      if (updateErr) {
+        setError('Failed to award winner bonus. Please try again.');
+        return;
+      }
+
+      await fetchGame(gameId);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Failed to award winner bonus. Please try again.');
+    } finally {
+      setAwardingWinnerId(null);
+    }
   };
 
   return (
@@ -189,6 +224,45 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
           ))}
         </div>
       )}
+
+      <div className="glass-card rounded-lg p-5" data-testid="winner-bonus-admin-card">
+        <h2 className="text-lg font-semibold text-gray-900">Tournament Winner Bonus (+10)</h2>
+        <p className="mt-1 text-sm text-gray-600">Award +10 to players who picked the champion correctly.</p>
+
+        {winnerPicks.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-600" data-testid="winner-bonus-empty">No winner picks submitted yet.</p>
+        ) : (
+          <div className="mt-4 space-y-3" data-testid="winner-bonus-list">
+            {winnerPicks.map((pick) => (
+              <div key={pick.id} className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-4 py-3">
+                <div>
+                  <p className="font-semibold text-gray-900">{playerById[pick.sessionId] || 'Unknown Player'}</p>
+                  <p className="text-sm text-gray-600">Picked: {pick.teamName}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {pick.isLocked && (
+                    <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800" data-testid={`winner-bonus-awarded-${pick.id}`}>
+                      Awarded +{pick.awardedPoints || 10}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleAwardWinnerBonus(pick.id)}
+                    disabled={awardingWinnerId === pick.id}
+                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white transition-all hover:bg-green-600 disabled:opacity-50"
+                    data-testid={`winner-bonus-award-${pick.id}`}
+                  >
+                    {awardingWinnerId === pick.id
+                      ? 'Saving...'
+                      : pick.isLocked
+                        ? 'Update Bonus'
+                        : 'Award +10'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

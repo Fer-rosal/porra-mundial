@@ -94,7 +94,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
                     <div className="min-w-0">
                       <p className="truncate font-medium text-orange-900">{item.label}</p>
                       <p className="text-xs text-orange-700">
-                        {PHASE_LABELS[item.phaseKey]} · {item.source === 'prediction' ? 'Prediction' : 'Scorer'} · {item.basePoints} x {item.multiplier}
+                        {PHASE_LABELS[item.phaseKey]} · {item.source === 'prediction' ? 'Prediction' : item.source === 'scorer' ? 'Scorer' : 'Winner Bonus'} · {item.basePoints} x {item.multiplier}
                       </p>
                     </div>
                     <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-orange-800">

@@ -72,6 +72,16 @@ export interface DbScorerSelection {
   updated_at: string
 }
 
+export interface DbWinnerPick {
+  id: string
+  game_player_id: string
+  team_name: string
+  awarded_points: number
+  is_locked: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface DbGameActionLog {
   id: string
   game_id: string
