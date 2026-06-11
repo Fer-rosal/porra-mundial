@@ -5,6 +5,7 @@ import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import MatchCard from '@/components/MatchCard';
 import CopyRecoveryLink from '@/components/CopyRecoveryLink';
 import { buildPlayerRecoveryLink } from '@/lib/id-utils';
+import { calculatePredictionPoints } from '@/lib/local-scoring';
 
 export default function PredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -46,9 +47,10 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   // Find the open, unlocked phase
   const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
   const lockedPhase = game.phases.find((p) => p.isLocked);
+  const isReadOnlyBoard = game.status === 'COMPLETED' || !openPhase;
 
   // Determine current phase for display
-  const activePhaseKey: PhaseKey | null = openPhase?.phaseKey ?? null;
+  const activePhaseKey: PhaseKey | null = openPhase?.phaseKey ?? lockedPhase?.phaseKey ?? null;
 
   // Get matches for the active phase
   const activeMatches = activePhaseKey
@@ -83,6 +85,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   };
 
   const handleSubmit = async () => {
+    if (isReadOnlyBoard) return;
     setError(null);
 
     // Belt-and-suspenders guard (button is already disabled, but defensive check)
@@ -161,11 +164,23 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
         <>
           <div className="space-y-4" data-testid="predictions-list">
             {activeMatches.map((match) => {
-              const isSaved = existingPredictions.has(match.id);
+              const prediction = existingPredictions.get(match.id);
+              const isSaved = Boolean(prediction);
+              const hasResult = match.resultEntered && match.homeGoals !== null && match.awayGoals !== null;
+              const predictionPoints =
+                hasResult && prediction
+                  ? calculatePredictionPoints(
+                      prediction[0],
+                      prediction[1],
+                      match.homeGoals as number,
+                      match.awayGoals as number
+                    )
+                  : null;
 
-              if (isSaved) {
-                // Mode A — already saved: read-only with Saved badge
-                const [savedHome, savedAway] = existingPredictions.get(match.id)!;
+              if (isSaved || isReadOnlyBoard) {
+                // Read-only mode for saved matches or when phase/game is locked
+                const savedHome = prediction?.[0];
+                const savedAway = prediction?.[1];
                 return (
                   <MatchCard
                     key={match.id}
@@ -180,9 +195,12 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
                       away_goals: match.awayGoals ?? undefined,
                     }}
                     readOnly={true}
-                    savedBadge={true}
+                    savedBadge={isSaved}
                     homeGoalsPredicted={savedHome}
                     awayGoalsPredicted={savedAway}
+                    actualHomeGoals={hasResult ? match.homeGoals : null}
+                    actualAwayGoals={hasResult ? match.awayGoals : null}
+                    predictionPoints={predictionPoints}
                   />
                 );
               }
@@ -214,7 +232,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
 
           <button
             onClick={handleSubmit}
-            disabled={checkedMatches.size === 0 || isSaving}
+            disabled={isReadOnlyBoard || checkedMatches.size === 0 || isSaving}
             className="w-full rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all flex items-center justify-center gap-2"
             data-testid="predictions-submit-btn"
           >

@@ -15,6 +15,21 @@ function getOutcome(home: number, away: number): 'home' | 'draw' | 'away' {
   return 'draw'
 }
 
+export function calculatePredictionPoints(
+  predictedHome: number,
+  predictedAway: number,
+  actualHome: number,
+  actualAway: number
+): number {
+  if (predictedHome === actualHome && predictedAway === actualAway) {
+    return 3
+  }
+  if (getOutcome(predictedHome, predictedAway) === getOutcome(actualHome, actualAway)) {
+    return 1
+  }
+  return 0
+}
+
 /**
  * Pure function — calculates the leaderboard from a LocalGame's current state.
  * Scoring:
@@ -55,11 +70,12 @@ export function calculateLeaderboard(game: LocalGame): LeaderboardEntry[] {
           const predictedHome = prediction.homeGoalsPredicted
           const predictedAway = prediction.awayGoalsPredicted
 
-          if (predictedHome === actualHome && predictedAway === actualAway) {
-            predictionPoints += 3
-          } else if (getOutcome(predictedHome, predictedAway) === getOutcome(actualHome, actualAway)) {
-            predictionPoints += 1
-          }
+          predictionPoints += calculatePredictionPoints(
+            predictedHome,
+            predictedAway,
+            actualHome,
+            actualAway
+          )
         }
 
         // Scorer selection: 1 point if the scorer they picked scored at least one goal

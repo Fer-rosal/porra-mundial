@@ -17,6 +17,7 @@ import type {
   DbMatch,
   DbPrediction,
   DbScorerSelection,
+  DbGameActionLog,
 } from './types'
 
 type SupabaseLikeError = {
@@ -127,6 +128,8 @@ interface MatchTeamUpdate {
   homeTeam: string
   awayTeam: string
 }
+
+type ActionLogDetails = Record<string, unknown>
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -294,7 +297,7 @@ interface GameStoreContextValue {
 
   // Async — DB backed
   fetchGame: (gameId: string) => Promise<LocalGame | null>
-  createGame: (name: string) => Promise<LocalGame>
+  createGame: (name: string, creatorName?: string) => Promise<LocalGame>
   joinGame: (inviteCode: string, playerName: string) => Promise<
     { game: LocalGame; sessionId: string; playerToken: string } | { error: string }
   >
@@ -311,6 +314,8 @@ interface GameStoreContextValue {
   saveScorerSelection: (gameId: string, phaseKey: PhaseKey, playerName: string) => Promise<void>
   openPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
   lockPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
+  lockGame:            (gameId: string) => Promise<void>
+  downloadActionLogs:  (gameId: string) => Promise<{ count: number }>
   saveResults:         (gameId: string, phaseKey: PhaseKey, results: ResultInput[]) => Promise<void>
   deleteGame:          (gameId: string) => Promise<void>
   exportGame:          (gameId: string) => string      // still sync — encodes in-memory cache
@@ -382,6 +387,36 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     setHasLegacyData(false)
   }
 
+  async function logGameAction(
+    gameId: string,
+    actorSessionId: string,
+    actionType: string,
+    actionDetails: ActionLogDetails = {}
+  ): Promise<void> {
+    const client = supabaseWithSession(actorSessionId)
+    await client.from('game_action_logs').insert({
+      id: generateUUID(),
+      game_id: gameId,
+      actor_session_id: actorSessionId,
+      action_type: actionType,
+      action_details: actionDetails,
+      created_at: new Date().toISOString(),
+    })
+  }
+
+  async function safeLogGameAction(
+    gameId: string,
+    actorSessionId: string,
+    actionType: string,
+    actionDetails: ActionLogDetails = {}
+  ): Promise<void> {
+    try {
+      await logGameAction(gameId, actorSessionId, actionType, actionDetails)
+    } catch {
+      // Do not break gameplay if logging fails.
+    }
+  }
+
   // ─── fetchGame ──────────────────────────────────────────────────────────────
 
   async function fetchGame(gameId: string): Promise<LocalGame | null> {
@@ -439,12 +474,13 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
   // ─── createGame ─────────────────────────────────────────────────────────────
 
-  async function createGame(name: string): Promise<LocalGame> {
+  async function createGame(name: string, creatorName: string = 'Creator'): Promise<LocalGame> {
     const gameId             = generateUUID()
     const creatorSessionId   = generateUUID()
     const adminToken         = generateUUID()
     const creatorPlayerToken = generateUUID()
     const now                = new Date().toISOString()
+    const seededCreatorName  = creatorName.trim() || 'Creator'
 
     // Unique invite code (retry up to 10x)
     let inviteCode = generateInviteCode()
@@ -518,7 +554,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       id:           generateUUID(),
       game_id:      gameId,
       session_id:   creatorSessionId,
-      player_name:  'Creator',
+      player_name:  seededCreatorName,
       player_token: creatorPlayerToken,
       total_score:  0,
       joined_at:    now,
@@ -526,6 +562,12 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     if (playerInsertErr) {
       throw new Error(formatSupabaseError('Failed to add creator player.', playerInsertErr))
     }
+
+    await safeLogGameAction(gameId, creatorSessionId, 'game_created', {
+      gameName: name,
+      creatorName: seededCreatorName,
+      inviteCode,
+    })
 
     // Persist identity keys to localStorage
     persistSessionId(gameId, creatorSessionId)
@@ -574,6 +616,9 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
     if (existing) {
       persistSessionId(gameId, (existing as DbGamePlayer).session_id)
+      await safeLogGameAction(gameId, (existing as DbGamePlayer).session_id, 'player_rejoined', {
+        playerName: playerName.trim(),
+      })
       const game = await fetchGame(gameId)
       if (!game) return { error: 'Joined game but failed to load it. Please refresh and try again.' }
       return {
@@ -598,6 +643,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     if (joinInsertErr) {
       return { error: formatSupabaseError('Failed to join game.', joinInsertErr) }
     }
+
+    await safeLogGameAction(gameId, sessionId, 'player_joined', {
+      playerName: playerName.trim(),
+    })
+
     persistSessionId(gameId, sessionId)
     if (typeof window !== 'undefined') {
       localStorage.setItem(`porra_mundial_player_token_${gameId}`, playerToken)
@@ -738,6 +788,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       ignoreDuplicates: true,
     })
 
+    await safeLogGameAction(gameId, mySessionId, 'predictions_saved', {
+      count: predictions.length,
+      matchIds: predictions.map((p) => p.matchId),
+    })
+
     await fetchGame(gameId)
   }
 
@@ -755,6 +810,8 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     predictions: PredictionInput[]
   ): Promise<void> {
     if (!getIsCreator(gameId)) return
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
 
     const { data: player } = await supabase
       .from('game_players')
@@ -779,6 +836,12 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     await supabase.from('predictions').upsert(rows, {
       onConflict: 'match_id,game_player_id',
       ignoreDuplicates: false,
+    })
+
+    await safeLogGameAction(gameId, creatorSessionId, 'predictions_overridden', {
+      targetSessionId,
+      count: predictions.length,
+      matchIds: predictions.map((p) => p.matchId),
     })
 
     await fetchGame(gameId)
@@ -840,6 +903,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       ignoreDuplicates: true,
     })
 
+    await safeLogGameAction(gameId, mySessionId, 'scorer_selected', {
+      phaseKey,
+      playerName,
+    })
+
     await fetchGame(gameId)
   }
 
@@ -852,6 +920,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     await client.from('tournament_phases')
       .update({ is_open: true, opened_at: new Date().toISOString() })
       .eq('game_id', gameId).eq('phase_key', phaseKey)
+    await safeLogGameAction(gameId, creatorSessionId, 'phase_opened', { phaseKey })
     await fetchGame(gameId)
   }
 
@@ -864,7 +933,65 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     await client.from('tournament_phases')
       .update({ is_locked: true, locked_at: new Date().toISOString() })
       .eq('game_id', gameId).eq('phase_key', phaseKey)
+    await safeLogGameAction(gameId, creatorSessionId, 'phase_locked', { phaseKey })
     await fetchGame(gameId)
+  }
+
+  // ─── lockGame ───────────────────────────────────────────────────────────────
+
+  async function lockGame(gameId: string): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+
+    const client = supabaseWithSession(creatorSessionId)
+    const now = new Date().toISOString()
+
+    await client.from('games')
+      .update({ status: 'COMPLETED', updated_at: now })
+      .eq('id', gameId)
+
+    await client.from('tournament_phases')
+      .update({ is_locked: true, locked_at: now })
+      .eq('game_id', gameId)
+      .eq('is_locked', false)
+
+    await safeLogGameAction(gameId, creatorSessionId, 'game_locked', {})
+
+    await fetchGame(gameId)
+  }
+
+  async function downloadActionLogs(gameId: string): Promise<{ count: number }> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return { count: 0 }
+
+    const client = supabaseWithSession(creatorSessionId)
+    const { data, error: logsErr } = await client
+      .from('game_action_logs')
+      .select('created_at,actor_session_id,action_type,action_details')
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: true })
+
+    if (logsErr) {
+      throw new Error(formatSupabaseError('Failed to download logs.', logsErr))
+    }
+
+    const logs = (data ?? []) as Pick<DbGameActionLog, 'created_at' | 'actor_session_id' | 'action_type' | 'action_details'>[]
+
+    if (typeof window !== 'undefined') {
+      const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `game-${gameId}-action-logs.json`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
+    }
+
+    await safeLogGameAction(gameId, creatorSessionId, 'logs_downloaded', { count: logs.length })
+
+    return { count: logs.length }
   }
 
   // ─── saveResults ────────────────────────────────────────────────────────────
@@ -889,6 +1016,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         .eq('id', r.matchId)
     ))
 
+    await safeLogGameAction(gameId, creatorSessionId, 'results_saved', {
+      count: results.length,
+      matchIds: results.map((r) => r.matchId),
+    })
+
     await fetchGame(gameId)
   }
 
@@ -897,6 +1029,9 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
   async function deleteGame(gameId: string): Promise<void> {
     const creatorSessionId = getCreatorSessionId(gameId) ?? ''
     const client = supabaseWithSession(creatorSessionId)
+    if (creatorSessionId) {
+      await safeLogGameAction(gameId, creatorSessionId, 'game_deleted', {})
+    }
     await client.from('games').delete().eq('id', gameId)
     // Cascades delete tournament_phases → matches, game_players → predictions/scorer_selections
 
@@ -960,6 +1095,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         updated_at:         now,
       })
       if (insertErr) return { error: 'Failed to import game. Please try again.' }
+
+      await safeLogGameAction(gameId, creatorSessionId, 'game_imported', {
+        sourceGameId: sourceGame.id,
+        sourceExportTimestamp: data.at,
+      })
 
       // INSERT phases
       const phaseRows = sourceGame.phases.map(ph => ({
@@ -1080,6 +1220,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         teams_confirmed: true,
       })
       .eq('id', matchId)
+    await safeLogGameAction(gameId, creatorSessionId, 'match_teams_updated', {
+      matchId,
+      homeTeam: homeTeam.trim(),
+      awayTeam: awayTeam.trim(),
+    })
     await fetchGame(gameId)
   }
 
@@ -1102,6 +1247,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         })
         .eq('id', u.matchId)
     ))
+
+    await safeLogGameAction(gameId, creatorSessionId, 'phase_matches_saved', {
+      count: updates.length,
+      updates,
+    })
 
     await fetchGame(gameId)
   }
@@ -1130,6 +1280,8 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         saveScorerSelection,
         openPhase,
         lockPhase,
+        lockGame,
+        downloadActionLogs,
         saveResults,
         deleteGame,
         exportGame,

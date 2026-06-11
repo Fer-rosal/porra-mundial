@@ -44,10 +44,9 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
 
   return (
     <>
-      {/* ── Mobile: fixed bottom tab bar ─────────────────────────────── */}
+      {/* ── Mobile: sticky top tab bar (below app header) ────────────── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-orange-100 bg-white/95 shadow-[0_-10px_24px_rgba(194,65,12,0.1)] backdrop-blur sm:hidden"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="sticky top-16 z-30 border-b border-orange-100 bg-white/95 shadow-[0_8px_20px_rgba(194,65,12,0.08)] backdrop-blur sm:hidden"
         data-testid="game-nav-mobile"
       >
         <div className={`grid ${colsClass}`}>
@@ -83,9 +82,9 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
         </div>
       </nav>
 
-      {/* ── Desktop: horizontal pill tab strip ───────────────────────── */}
+      {/* ── Desktop: sticky horizontal pill tab strip ─────────────────── */}
       <nav
-        className="hidden border-b border-orange-100 sm:block"
+        className="sticky top-16 z-20 hidden border-b border-orange-100 bg-white/90 backdrop-blur sm:block"
         data-testid="game-nav-desktop"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

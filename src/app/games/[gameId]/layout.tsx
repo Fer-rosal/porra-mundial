@@ -86,11 +86,10 @@ export default function GameLayout({
         </div>
       </div>
 
-      {/* Navigation — GameNavBar handles both mobile (fixed bottom) and desktop (inline top) */}
+      {/* Navigation — GameNavBar stays sticky under the app header */}
       <GameNavBar gameId={gameId} isAdmin={isAdmin} />
 
-      {/* Content — pb-20 ensures content is not hidden behind fixed mobile tab bar */}
-      <div className="mx-auto max-w-7xl px-4 py-8 pb-24 sm:pb-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </div>
     </div>

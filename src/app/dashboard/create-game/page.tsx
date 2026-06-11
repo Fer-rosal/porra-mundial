@@ -12,6 +12,7 @@ export default function CreateGamePage() {
   const router = useRouter();
   const { createGame } = useGameStore();
   const [gameName, setGameName] = useState('');
+  const [creatorName, setCreatorName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [createdGame, setCreatedGame] = useState<LocalGame | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -21,17 +22,26 @@ export default function CreateGamePage() {
     e.preventDefault();
     setError(null);
     const trimmed = gameName.trim();
+    const trimmedCreatorName = creatorName.trim();
     if (!trimmed) {
       setError('Game name is required');
+      return;
+    }
+    if (!trimmedCreatorName) {
+      setError('Your name is required');
       return;
     }
     if (trimmed.length > 100) {
       setError('Game name must be 100 characters or fewer');
       return;
     }
+    if (trimmedCreatorName.length > 50) {
+      setError('Your name must be 50 characters or fewer');
+      return;
+    }
     setIsCreating(true);
     try {
-      const game = await createGame(trimmed);
+      const game = await createGame(trimmed, trimmedCreatorName);
       // persistSessionId is called inside createGame — no need to call it again
       setCreatedGame(game);
     } catch (err: unknown) {
@@ -164,6 +174,22 @@ export default function CreateGamePage() {
               className="input-field mt-1 px-4 py-2 text-gray-900"
               data-testid="create-game-name-input"
               maxLength={100}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="creatorName" className="block text-sm font-medium text-gray-900">
+              Your Name *
+            </label>
+            <input
+              id="creatorName"
+              type="text"
+              value={creatorName}
+              onChange={(e) => setCreatorName(e.target.value)}
+              placeholder="e.g., Fernando"
+              className="input-field mt-1 px-4 py-2 text-gray-900"
+              data-testid="create-game-creator-name-input"
+              maxLength={50}
             />
           </div>
 

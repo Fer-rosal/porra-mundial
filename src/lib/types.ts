@@ -71,6 +71,15 @@ export interface DbScorerSelection {
   updated_at: string
 }
 
+export interface DbGameActionLog {
+  id: string
+  game_id: string
+  actor_session_id: string
+  action_type: string
+  action_details: Record<string, unknown>
+  created_at: string
+}
+
 // ── Legacy types — kept for backward-compatibility with components and scoring.ts ──
 // These types will be removed once all callers are migrated to LocalGame / DB types.
 

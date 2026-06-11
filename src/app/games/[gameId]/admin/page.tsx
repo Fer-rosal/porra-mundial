@@ -14,9 +14,12 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
   const { gameId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { getGame, getIsCreator, openPhase, lockPhase, redeemAdminToken } = useGameStore();
+  const { getGame, getIsCreator, openPhase, lockPhase, lockGame, downloadActionLogs, redeemAdminToken } = useGameStore();
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [tokenRedeemed, setTokenRedeemed] = useState(false);
+  const [lockingGame, setLockingGame] = useState(false);
+  const [downloadingLogs, setDownloadingLogs] = useState(false);
+  const [logsDownloadError, setLogsDownloadError] = useState<string | null>(null);
 
   // Token redemption — fires before access-denied guard renders
   useEffect(() => {
@@ -64,6 +67,30 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
   const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
   const selectedPhaseMatches = game.matches.filter((m) => m.phaseKey === selectedPhase);
   const hasTbdMatches = selectedPhase !== 'LEAGUE' && selectedPhaseMatches.some((m) => !m.teamsConfirmed);
+
+  const handleLockGame = async () => {
+    const shouldLock = window.confirm('Lock the entire game? Players will no longer be able to submit predictions in any phase.')
+    if (!shouldLock) return
+
+    setLockingGame(true)
+    try {
+      await lockGame(gameId)
+    } finally {
+      setLockingGame(false)
+    }
+  }
+
+  const handleDownloadLogs = async () => {
+    setLogsDownloadError(null)
+    setDownloadingLogs(true)
+    try {
+      await downloadActionLogs(gameId)
+    } catch (err: unknown) {
+      setLogsDownloadError(err instanceof Error ? err.message : 'Failed to download logs')
+    } finally {
+      setDownloadingLogs(false)
+    }
+  }
 
   return (
     <div className="space-y-8" data-testid="admin-page">
@@ -117,6 +144,37 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
       />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="glass-card rounded-xl p-5" data-testid="admin-download-logs-card">
+          <h3 className="text-base font-semibold text-gray-900">Action Logs</h3>
+          <p className="mt-1 text-gray-600">Download all recorded player/admin actions for this game.</p>
+          <button
+            onClick={handleDownloadLogs}
+            disabled={downloadingLogs}
+            className="mt-4 w-full rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="admin-download-logs-btn"
+          >
+            {downloadingLogs ? 'Preparing...' : 'Download Logs'}
+          </button>
+          {logsDownloadError && (
+            <p className="mt-2 text-sm text-red-600" data-testid="admin-download-logs-error">
+              {logsDownloadError}
+            </p>
+          )}
+        </div>
+
+        <div className="glass-card rounded-xl p-5" data-testid="admin-lock-game-card">
+          <h3 className="text-base font-semibold text-gray-900">Lock Entire Game</h3>
+          <p className="mt-1 text-gray-600">Closes all phases and prevents any further player predictions.</p>
+          <button
+            onClick={handleLockGame}
+            disabled={lockingGame || game.status === 'COMPLETED'}
+            className="mt-4 w-full rounded-xl bg-red-500 px-4 py-2.5 font-semibold text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="admin-lock-game-btn"
+          >
+            {game.status === 'COMPLETED' ? 'Game Locked' : lockingGame ? 'Locking...' : 'Lock Game'}
+          </button>
+        </div>
+
         <Link
           href={`/games/${gameId}/admin/results`}
           className="glass-card rounded-xl p-5"

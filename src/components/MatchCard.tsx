@@ -14,6 +14,9 @@ interface MatchCardProps {
   onCheckedChange?: (checked: boolean) => void;
   readOnly?: boolean;
   savedBadge?: boolean;
+  actualHomeGoals?: number | null;
+  actualAwayGoals?: number | null;
+  predictionPoints?: number | null;
 }
 
 export default function MatchCard({
@@ -26,6 +29,9 @@ export default function MatchCard({
   onCheckedChange,
   readOnly = false,
   savedBadge = false,
+  actualHomeGoals,
+  actualAwayGoals,
+  predictionPoints,
 }: MatchCardProps) {
   const [home, setHome] = useState(homeGoalsPredicted ?? 0);
   const [away, setAway] = useState(awayGoalsPredicted ?? 0);
@@ -93,7 +99,7 @@ export default function MatchCard({
           {readOnly ? (
             // readOnly: show saved scores as plain text
             <div className="text-3xl font-bold tabular-nums text-gray-900" data-testid={`match-readonly-score-${match.id}`}>
-              {homeGoalsPredicted ?? 0} <span className="text-gray-400">:</span> {awayGoalsPredicted ?? 0}
+              {homeGoalsPredicted ?? '-'} <span className="text-gray-400">:</span> {awayGoalsPredicted ?? '-'}
             </div>
           ) : editable ? (
             <div className="flex gap-2 items-center">
@@ -143,6 +149,19 @@ export default function MatchCard({
       {resultEntered && !readOnly && (
         <div className="border-t border-gray-100 pt-2 text-center">
           <p className="text-xs font-semibold text-green-700">Result Entered</p>
+        </div>
+      )}
+
+      {readOnly && actualHomeGoals !== null && actualHomeGoals !== undefined && actualAwayGoals !== null && actualAwayGoals !== undefined && (
+        <div className="mt-3 border-t border-gray-100 pt-3" data-testid={`match-result-summary-${match.id}`}>
+          <p className="text-sm font-semibold text-red-600" data-testid={`match-result-${match.id}`}>
+            Result: {actualHomeGoals} : {actualAwayGoals}
+          </p>
+          {predictionPoints !== null && predictionPoints !== undefined && (
+            <p className="mt-1 text-sm font-semibold text-orange-700" data-testid={`match-points-${match.id}`}>
+              Points: +{predictionPoints}
+            </p>
+          )}
         </div>
       )}
     </div>
