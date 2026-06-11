@@ -9,6 +9,14 @@ import { buildAdminRecoveryLink } from '@/lib/id-utils';
 import Link from 'next/link';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  LEAGUE: 'LEAGUE',
+  R16: 'R32',
+  R8: 'R8',
+  R4: 'R4',
+  R2: 'R2',
+  FINAL: 'FINAL',
+};
 
 export default function AdminPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -123,7 +131,7 @@ export default function AdminPage({ params }: { params: Promise<{ gameId: string
                 }`}
                 data-testid={`admin-phase-${phase}`}
               >
-                {phase}
+                {PHASE_LABELS[phase]}
                 {phaseData?.isLocked && ' 🔒'}
                 {phaseData?.isOpen && !phaseData.isLocked && ' ✓'}
               </button>

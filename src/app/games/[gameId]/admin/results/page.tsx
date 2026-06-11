@@ -6,6 +6,14 @@ import { useState } from 'react';
 import MatchCard from '@/components/MatchCard';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  LEAGUE: 'LEAGUE',
+  R16: 'R32',
+  R8: 'R8',
+  R4: 'R4',
+  R2: 'R2',
+  FINAL: 'FINAL',
+};
 type ResultFilter = 'ALL' | 'PENDING' | 'ENTERED';
 
 export default function ResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
@@ -157,7 +165,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
               data-testid="results-round-select"
             >
               {PHASE_OPTIONS.map((phase) => (
-                <option key={phase} value={phase}>{phase}</option>
+                <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>
               ))}
             </select>
           </div>
@@ -203,7 +211,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="results-lock-phase-btn"
           >
-            {selectedPhaseData?.isLocked ? 'Predictions Locked' : isLocking ? 'Locking...' : `Lock ${selectedPhase} Predictions`}
+            {selectedPhaseData?.isLocked ? 'Predictions Locked' : isLocking ? 'Locking...' : `Lock ${PHASE_LABELS[selectedPhase]} Predictions`}
           </button>
         </div>
       </div>

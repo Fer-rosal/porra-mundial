@@ -6,6 +6,14 @@ import { useState } from 'react';
 import { supabaseWithSession } from '@/lib/supabase';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  LEAGUE: 'LEAGUE',
+  R16: 'R32',
+  R8: 'R8',
+  R4: 'R4',
+  R2: 'R2',
+  FINAL: 'FINAL',
+};
 
 export default function ScorerPointsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -110,7 +118,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
             }`}
             data-testid={`scorer-points-phase-${phase}`}
           >
-            {phase}
+            {PHASE_LABELS[phase]}
           </button>
         ))}
       </div>
@@ -132,7 +140,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
           className="glass-card rounded-lg p-8 text-center text-gray-600"
           data-testid="scorer-points-empty"
         >
-          No scorer selections for {selectedPhase} yet.
+          No scorer selections for {PHASE_LABELS[selectedPhase]} yet.
         </div>
       ) : (
         <div className="space-y-3" data-testid="scorer-points-list">

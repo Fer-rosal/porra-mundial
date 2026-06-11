@@ -6,6 +6,14 @@ import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import { useState, useEffect } from 'react';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+const PHASE_LABELS: Record<PhaseKey, string> = {
+  LEAGUE: 'LEAGUE',
+  R16: 'R32',
+  R8: 'R8',
+  R4: 'R4',
+  R2: 'R2',
+  FINAL: 'FINAL',
+};
 
 interface MatchEdit {
   matchId: string
@@ -105,7 +113,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
             }`}
             data-testid={`admin-matches-phase-${phase}`}
           >
-            {phase}
+            {PHASE_LABELS[phase]}
           </button>
         ))}
       </div>
