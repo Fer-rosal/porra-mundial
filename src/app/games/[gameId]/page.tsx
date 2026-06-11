@@ -132,17 +132,17 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
             {game.players.map((player) => (
               <li
                 key={player.sessionId}
-                className="flex items-center gap-2 rounded-xl border border-gray-100 px-4 py-2.5"
+                className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-100 px-4 py-2.5"
                 data-testid={`game-player-${player.sessionId}`}
               >
-                <span className="text-gray-900">{player.name}</span>
+                <span className="mr-1 font-medium text-gray-900">{player.name}</span>
                 {player.sessionId === game.creatorSessionId && (
-                  <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                  <span className="inline-flex items-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-sm">
                     Creator
                   </span>
                 )}
                 {mySession && player.sessionId === mySession.sessionId && (
-                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  <span className="inline-flex items-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-sm">
                     You
                   </span>
                 )}

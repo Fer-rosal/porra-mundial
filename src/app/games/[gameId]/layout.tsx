@@ -74,7 +74,7 @@ export default function GameLayout({
                   <span className="ml-2 text-gray-500">
                     — Playing as <span className="font-medium text-gray-700">{mySession.name}</span>
                     {isAdmin && (
-                      <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                      <span className="ml-2 inline-flex items-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-sm">
                         Creator
                       </span>
                     )}
