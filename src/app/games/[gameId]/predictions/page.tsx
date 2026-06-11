@@ -208,8 +208,8 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
                   : null;
               const isBlocked = match.predictionsLocked;
 
-              if (isSaved || isReadOnlyBoard || isBlocked) {
-                // Read-only mode for saved matches or when phase/game is locked
+              if (isReadOnlyBoard || isBlocked) {
+                // Read-only mode when phase/game is locked or match is blocked
                 const savedHome = prediction?.[0];
                 const savedAway = prediction?.[1];
                 return (
@@ -251,11 +251,12 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
                     away_goals: match.awayGoals ?? undefined,
                   }}
                   editable={true}
+                  savedBadge={isSaved}
                   checked={checkedMatches.has(match.id)}
                   onCheckedChange={(c) => handleCheck(match.id, c)}
                   onScoreChange={(home, away) => handleScoreChange(match.id, home, away)}
-                  homeGoalsPredicted={pendingScores.get(match.id)?.[0] ?? 0}
-                  awayGoalsPredicted={pendingScores.get(match.id)?.[1] ?? 0}
+                  homeGoalsPredicted={pendingScores.get(match.id)?.[0] ?? prediction?.[0] ?? 0}
+                  awayGoalsPredicted={pendingScores.get(match.id)?.[1] ?? prediction?.[1] ?? 0}
                 />
               );
             })}

@@ -799,10 +799,10 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       updated_at:            now,
     }))
 
-    // ON CONFLICT DO NOTHING enforces player prediction immutability
+    // Players can edit predictions until admin blocks the match.
     await supabase.from('predictions').upsert(rows, {
       onConflict: 'match_id,game_player_id',
-      ignoreDuplicates: true,
+      ignoreDuplicates: false,
     })
 
     await safeLogGameAction(gameId, mySessionId, 'predictions_saved', {
