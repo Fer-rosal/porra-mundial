@@ -497,7 +497,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
     // Bulk INSERT 104 matches
     const matchRows = MATCH_DATA.map(m => ({
-      id:                   `${gameId}-match-${m.phase_key}-${m.match_number}`,
+      id:                   generateUUID(),
       tournament_phase_id:  phaseIdMap.get(m.phase_key as PhaseKey)!,
       phase_key:            m.phase_key,
       match_number:         m.match_number,
@@ -980,21 +980,28 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       )
 
       // INSERT matches
+      const importedMatchIdMap = new Map<string, string>()
+
       if (sourceGame.matches.length > 0) {
-        const matchRows = sourceGame.matches.map(m => ({
-          id:                   `${gameId}-match-${m.phaseKey}-${m.matchNumber}`,
-          tournament_phase_id:  phaseIdMap.get(m.phaseKey)!,
-          phase_key:            m.phaseKey,
-          match_number:         m.matchNumber,
-          home_team:            m.homeTeam,
-          away_team:            m.awayTeam,
-          scheduled_at:         m.scheduledAt,
-          result_entered:       m.resultEntered,
-          home_goals:           m.homeGoals ?? null,
-          away_goals:           m.awayGoals ?? null,
-          teams_confirmed:      m.teamsConfirmed,
-          created_at:           now,
-        }))
+        const matchRows = sourceGame.matches.map(m => {
+          const newMatchId = generateUUID()
+          importedMatchIdMap.set(m.id, newMatchId)
+
+          return {
+            id:                   newMatchId,
+            tournament_phase_id:  phaseIdMap.get(m.phaseKey)!,
+            phase_key:            m.phaseKey,
+            match_number:         m.matchNumber,
+            home_team:            m.homeTeam,
+            away_team:            m.awayTeam,
+            scheduled_at:         m.scheduledAt,
+            result_entered:       m.resultEntered,
+            home_goals:           m.homeGoals ?? null,
+            away_goals:           m.awayGoals ?? null,
+            teams_confirmed:      m.teamsConfirmed,
+            created_at:           now,
+          }
+        })
         await supabase.from('matches').insert(matchRows)
       }
 
@@ -1016,12 +1023,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
       // INSERT predictions
       if (sourceGame.predictions.length > 0) {
-        const matchIdRemap = (oldMatchId: string) => {
-          // Deterministic match IDs embed the old gameId — remap to new gameId
-          const match = sourceGame.matches.find(m => m.id === oldMatchId)
-          if (!match) return null
-          return `${gameId}-match-${match.phaseKey}-${match.matchNumber}`
-        }
+        const matchIdRemap = (oldMatchId: string) => importedMatchIdMap.get(oldMatchId) ?? null
         const predRows = sourceGame.predictions
           .map(pr => {
             const newMatchId   = matchIdRemap(pr.matchId)
