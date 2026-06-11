@@ -3,6 +3,8 @@
 import { use, useState } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import MatchCard from '@/components/MatchCard';
+import CopyRecoveryLink from '@/components/CopyRecoveryLink';
+import { buildPlayerRecoveryLink } from '@/lib/id-utils';
 
 export default function PredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -13,6 +15,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   const [pendingScores, setPendingScores] = useState<Map<string, [number, number]>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
@@ -27,11 +30,18 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
 
   if (!mySession) {
     return (
-      <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-6 text-yellow-800" data-testid="predictions-no-session">
+      <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5 text-yellow-800" data-testid="predictions-no-session">
         You are not in this game. Please join the game first.
       </div>
     );
   }
+
+  // Build the player recovery link
+  const player = game.players.find((p) => p.sessionId === mySession.sessionId);
+  const playerRecoveryLink =
+    player?.playerToken && typeof window !== 'undefined'
+      ? buildPlayerRecoveryLink(window.location.origin, gameId, player.playerToken)
+      : '';
 
   // Find the open, unlocked phase
   const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
@@ -72,7 +82,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError(null);
 
     // Belt-and-suspenders guard (button is already disabled, but defensive check)
@@ -81,14 +91,15 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
       return;
     }
 
+    setIsSaving(true);
     try {
-      // Batch save — single persist() call avoids stale-closure issues
+      // Batch save — single call avoids stale-closure issues
       const payloads = Array.from(checkedMatches).map((matchId) => {
         const pending = pendingScores.get(matchId);
         const [home, away] = pending ?? [0, 0];
         return { matchId, homeGoalsPredicted: home, awayGoalsPredicted: away };
       });
-      savePredictions(gameId, payloads);
+      await savePredictions(gameId, payloads);
 
       // Clear transient state
       setCheckedMatches(new Set());
@@ -98,6 +109,8 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save predictions');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -110,11 +123,20 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
             Phase: <span className="font-semibold">{activePhaseKey}</span> — Submit before it closes.
           </p>
         )}
+        {/* Player Recovery Link */}
+        {playerRecoveryLink && (
+          <div className="mt-3" data-testid="predictions-recovery-link-section">
+            <CopyRecoveryLink
+              href={playerRecoveryLink}
+              label="Copy your recovery link"
+            />
+          </div>
+        )}
       </div>
 
       {!activePhaseKey && (
         <div
-          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
           data-testid="predictions-waiting"
         >
           {lockedPhase
@@ -124,13 +146,13 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700" data-testid="predictions-error">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" data-testid="predictions-error">
           {error}
         </div>
       )}
 
       {saved && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-700" data-testid="predictions-saved">
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-green-700" data-testid="predictions-saved">
           Predictions saved!
         </div>
       )}
@@ -192,11 +214,14 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
 
           <button
             onClick={handleSubmit}
-            disabled={checkedMatches.size === 0}
-            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={checkedMatches.size === 0 || isSaving}
+            className="w-full rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all flex items-center justify-center gap-2"
             data-testid="predictions-submit-btn"
           >
-            Save Predictions
+            {isSaving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            )}
+            {isSaving ? 'Saving...' : 'Save Predictions'}
           </button>
         </>
       )}

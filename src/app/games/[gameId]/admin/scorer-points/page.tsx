@@ -3,20 +3,21 @@
 import { use } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import { useState } from 'react';
+import { supabaseWithSession } from '@/lib/supabase';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function ScorerPointsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, games } = useGameStore();
+  const { getGame, getIsCreator, fetchGame } = useGameStore();
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [lockingId, setLockingId] = useState<string | null>(null);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="scorer-points-access-denied">
         Access denied. Only the game creator can award scorer points.
@@ -32,31 +33,34 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
   // Find player name by sessionId
   const playerById = Object.fromEntries(game.players.map((p) => [p.sessionId, p.name]));
 
-  // Lock a scorer selection to award the point
-  const handleLockScorer = (selectionId: string) => {
+  // Lock a scorer selection to award the point via Supabase
+  const handleLockScorer = async (selectionId: string) => {
     setError(null);
+    setLockingId(selectionId);
     try {
-      // We mutate via the store's games object — find and update
-      const gameData = games[gameId];
-      if (!gameData) return;
-      const updatedSelections = gameData.scorerSelections.map((s) =>
-        s.id === selectionId ? { ...s, isLocked: true } : s
-      );
-      // Direct write — use a workaround via the store context
-      // ARCHITECT_NOTE: The spec defines saveScorerSelection for player use, but admin locking
-      // of scorer selections needs a separate action. We write directly to localStorage here
-      // as an interim measure since the spec doesn't define lockScorerSelection.
-      // Flagging for review.
-      const updated = { ...gameData, scorerSelections: updatedSelections };
-      const store = JSON.parse(localStorage.getItem('porra_mundial_store') || '{"version":1,"games":{}}')
-      store.games[gameId] = updated
-      localStorage.setItem('porra_mundial_store', JSON.stringify(store))
+      const creatorKey = `porra_mundial_creator_${gameId}`;
+      const creatorSessionId =
+        typeof window !== 'undefined' ? localStorage.getItem(creatorKey) ?? '' : '';
+      const client = supabaseWithSession(creatorSessionId);
+
+      const { error: updateErr } = await client
+        .from('scorer_selections')
+        .update({ is_locked: true, updated_at: new Date().toISOString() })
+        .eq('id', selectionId);
+
+      if (updateErr) {
+        setError('Failed to award scorer point. Please try again.');
+        return;
+      }
+
+      // Refresh game cache
+      await fetchGame(gameId);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      // Force re-render by causing a re-read
-      window.location.reload();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to award scorer point');
+    } catch {
+      setError('Failed to award scorer point. Please try again.');
+    } finally {
+      setLockingId(null);
     }
   };
 
@@ -128,9 +132,13 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
                 ) : (
                   <button
                     onClick={() => handleLockScorer(sel.id)}
-                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white hover:bg-green-600"
+                    disabled={lockingId === sel.id}
+                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
                     data-testid={`scorer-award-${sel.id}`}
                   >
+                    {lockingId === sel.id && (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    )}
                     Award Point
                   </button>
                 )}

@@ -1,8 +1,9 @@
 'use client';
 
-import { use } from 'react';
+import { use, useEffect } from 'react';
 import Link from 'next/link';
 import { useGameStore } from '@/lib/game-store';
+import GameNavBar from '@/components/GameNavBar';
 import { ReactNode } from 'react';
 
 export default function GameLayout({
@@ -13,23 +14,42 @@ export default function GameLayout({
   params: Promise<{ gameId: string }>;
 }) {
   const { gameId } = use(params);
-  const { getGame, getMySession } = useGameStore();
+  const { getGame, getMySession, getIsCreator, fetchGame, isLoading, error } = useGameStore();
+
+  // Fetch game on mount if not already in cache
+  useEffect(() => {
+    if (!getGame(gameId)) {
+      fetchGame(gameId)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId])
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
-  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
+  const isAdmin = getIsCreator(gameId);
 
-  if (!game) {
+  if (isLoading && !game) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" data-testid="game-layout-loading">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
+          <p className="text-gray-600">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isLoading && !game) {
     return (
       <div className="flex min-h-screen items-center justify-center" data-testid="game-layout-not-found">
         <div className="max-w-md text-center">
           <p className="mb-4 text-xl font-semibold text-gray-900">Game not found</p>
           <p className="mb-6 text-gray-600">
-            Game data not found. It may have been cleared from this browser.
+            {error ?? 'This game does not exist or could not be loaded.'}
           </p>
           <Link
             href="/dashboard"
-            className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+            className="rounded-xl bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
           >
             Back to Dashboard
           </Link>
@@ -38,19 +58,21 @@ export default function GameLayout({
     );
   }
 
+  if (!game) return null
+
   return (
     <div className="min-h-screen bg-white" data-testid="game-layout">
       {/* Game header */}
-      <div className="border-b border-gray-200 bg-gray-50 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="border-b border-gray-200 bg-gray-50 px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{game.name}</h1>
-              <p className="mt-1 text-gray-600">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">{game.name}</h1>
+              <p className="mt-0.5 text-sm text-gray-600">
                 {game.players.length} player{game.players.length !== 1 ? 's' : ''}
                 {mySession && (
-                  <span className="ml-2 text-sm text-gray-500">
-                    — Playing as <span className="font-medium">{mySession.name}</span>
+                  <span className="ml-2 text-gray-500">
+                    — Playing as <span className="font-medium text-gray-700">{mySession.name}</span>
                     {isAdmin && (
                       <span className="ml-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
                         Creator
@@ -60,66 +82,15 @@ export default function GameLayout({
                 )}
               </p>
             </div>
-            {isAdmin && (
-              <div className="space-y-2">
-                <Link
-                  href={`/games/${gameId}/admin`}
-                  className="block rounded-lg bg-orange-500 px-4 py-2 text-center font-semibold text-white hover:bg-orange-600"
-                  data-testid="game-admin-link"
-                >
-                  Admin Panel
-                </Link>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Navigation tabs */}
-      <div className="border-b border-gray-200">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex gap-2 overflow-x-auto" data-testid="game-nav-tabs">
-            <Link
-              href={`/games/${gameId}`}
-              className="whitespace-nowrap border-b-2 border-orange-500 px-4 py-3 text-sm font-medium text-orange-600"
-              data-testid="game-nav-overview"
-            >
-              Overview
-            </Link>
-            <Link
-              href={`/games/${gameId}/predictions`}
-              className="whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900"
-              data-testid="game-nav-predictions"
-            >
-              Predictions
-            </Link>
-            <Link
-              href={`/games/${gameId}/my-predictions`}
-              className="whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900"
-              data-testid="game-nav-my-predictions"
-            >
-              My Predictions
-            </Link>
-            <Link
-              href={`/games/${gameId}/scorer`}
-              className="whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900"
-              data-testid="game-nav-scorer"
-            >
-              Scorer
-            </Link>
-            <Link
-              href={`/games/${gameId}/leaderboard`}
-              className="whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-600 hover:border-gray-300 hover:text-gray-900"
-              data-testid="game-nav-leaderboard"
-            >
-              Leaderboard
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* Navigation — GameNavBar handles both mobile (fixed bottom) and desktop (inline top) */}
+      <GameNavBar gameId={gameId} isAdmin={isAdmin} />
 
-      {/* Content */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* Content — pb-20 ensures content is not hidden behind fixed mobile tab bar */}
+      <div className="mx-auto max-w-7xl px-4 py-8 pb-24 sm:pb-8 sm:px-6 lg:px-8">
         {children}
       </div>
     </div>

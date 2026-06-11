@@ -19,15 +19,15 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
   const { gameId } = use(params);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { getGame, getMySession, savePhaseMatches } = useGameStore();
+  const { getGame, getIsCreator, savePhaseMatches } = useGameStore();
 
   const phaseParam = (searchParams?.get('phase') ?? 'R16') as PhaseKey;
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>(phaseParam);
   const [edits, setEdits] = useState<Record<string, { home: string; away: string }>>({});
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
   // Reset edits when phase changes
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
     setSaved(false);
   }, [selectedPhase]);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="admin-matches-access-denied">
         Access denied. Only the game creator can manage matches.
@@ -65,19 +65,24 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
     setSaved(false);
   };
 
-  const handleSave = () => {
-    // Single atomic write for all matches in the phase so teamsConfirmed is set for every match
-    savePhaseMatches(
-      gameId,
-      phaseMatches.map((m) => ({
-        matchId: m.matchId,
-        homeTeam: edits[m.matchId]?.home ?? m.homeTeam,
-        awayTeam: edits[m.matchId]?.away ?? m.awayTeam,
-      }))
-    );
-    setEdits({});
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      // Single atomic write for all matches in the phase so teamsConfirmed is set for every match
+      await savePhaseMatches(
+        gameId,
+        phaseMatches.map((m) => ({
+          matchId: m.matchId,
+          homeTeam: edits[m.matchId]?.home ?? m.homeTeam,
+          awayTeam: edits[m.matchId]?.away ?? m.awayTeam,
+        }))
+      );
+      setEdits({});
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -160,10 +165,14 @@ export default function AdminMatchesPage({ params }: { params: Promise<{ gameId:
       <div className="flex gap-3">
         <button
           onClick={handleSave}
-          className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+          disabled={isSaving}
+          className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2"
           data-testid="admin-matches-save-btn"
         >
-          Confirm Teams
+          {isSaving && (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          )}
+          {isSaving ? 'Saving...' : 'Confirm Teams'}
         </button>
         <button
           onClick={() => router.back()}

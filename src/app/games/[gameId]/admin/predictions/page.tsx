@@ -3,30 +3,39 @@
 import { use, useState } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import MatchCard from '@/components/MatchCard';
+import Link from 'next/link';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function AdminPredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, overridePredictions } = useGameStore();
+  const { getGame, getIsCreator, overridePredictions } = useGameStore();
 
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [pendingScores, setPendingScores] = useState<Map<string, [number, number]>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
+  const isCreator = getIsCreator(gameId);
 
   // Access guard
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !isCreator) {
     return (
       <div
         className="rounded-lg border border-red-200 bg-red-50 p-6 text-red-700"
         data-testid="admin-access-denied"
       >
-        Access denied. Only the game creator can access the admin panel.
+        <p className="font-semibold">Access denied</p>
+        <p className="mt-1 text-sm">Only the game creator can access the admin panel.</p>
+        <Link
+          href={game ? `/games/${gameId}` : '/dashboard'}
+          className="mt-4 inline-block rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+        >
+          Back to Overview
+        </Link>
       </div>
     );
   }
@@ -51,7 +60,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
     });
   };
 
-  const handleSaveOverride = () => {
+  const handleSaveOverride = async () => {
     setError(null);
 
     if (!effectiveSessionId) {
@@ -59,6 +68,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
       return;
     }
 
+    setIsSaving(true);
     try {
       // Admin saves the full set of displayed matches in a single batch call
       const payloads = matchesForPhase.map((match) => {
@@ -67,13 +77,15 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
         const [home, away] = pending ?? existing ?? [0, 0];
         return { matchId: match.id, homeGoalsPredicted: home, awayGoalsPredicted: away };
       });
-      overridePredictions(gameId, effectiveSessionId, payloads);
+      await overridePredictions(gameId, effectiveSessionId, payloads);
 
       setPendingScores(new Map());
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save predictions');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -192,10 +204,14 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
 
           <button
             onClick={handleSaveOverride}
-            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600"
+            disabled={isSaving}
+            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
             data-testid="admin-predictions-save-btn"
           >
-            Save Override
+            {isSaving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            )}
+            {isSaving ? 'Saving...' : 'Save Override'}
           </button>
         </>
       ) : (

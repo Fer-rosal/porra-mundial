@@ -54,7 +54,7 @@ export default function MatchCard({
 
   return (
     <div
-      className="rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow"
+      className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
       data-testid={`match-card-${match.id}`}
     >
       {/* Checkbox row — only shown when new props are in use */}
@@ -81,19 +81,19 @@ export default function MatchCard({
         </div>
       )}
 
-      <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
         {/* Home team */}
-        <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600">Home</p>
-          <p className="text-lg font-bold text-gray-900">{match.home_team}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Home</p>
+          <p className="text-base font-bold text-gray-900 truncate">{match.home_team}</p>
         </div>
 
         {/* Score */}
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
           {readOnly ? (
             // readOnly: show saved scores as plain text
-            <div className="text-2xl font-bold text-gray-900" data-testid={`match-readonly-score-${match.id}`}>
-              {homeGoalsPredicted ?? 0} : {awayGoalsPredicted ?? 0}
+            <div className="text-3xl font-bold tabular-nums text-gray-900" data-testid={`match-readonly-score-${match.id}`}>
+              {homeGoalsPredicted ?? 0} <span className="text-gray-400">:</span> {awayGoalsPredicted ?? 0}
             </div>
           ) : editable ? (
             <div className="flex gap-2 items-center">
@@ -104,10 +104,10 @@ export default function MatchCard({
                 value={home}
                 onChange={handleHomeChange}
                 disabled={inputsDisabled}
-                className={`w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
+                className={`w-12 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-home-input-${match.id}`}
               />
-              <span className="text-lg font-bold text-gray-400">:</span>
+              <span className="text-xl font-bold text-gray-300">:</span>
               <input
                 type="number"
                 min="0"
@@ -115,29 +115,33 @@ export default function MatchCard({
                 value={away}
                 onChange={handleAwayChange}
                 disabled={inputsDisabled}
-                className={`w-12 rounded border border-gray-300 bg-white px-2 py-1 text-center text-lg font-bold text-gray-900 focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
+                className={`w-12 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-center text-xl font-bold tabular-nums text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:bg-gray-100 disabled:cursor-not-allowed transition-opacity ${inputsOpacity}`}
                 data-testid={`match-away-input-${match.id}`}
               />
             </div>
           ) : (
-            <div className="text-2xl font-bold text-gray-900">
-              {resultEntered ? `${match.home_goals} : ${match.away_goals}` : '?  :  ?'}
+            <div className="text-3xl font-bold tabular-nums text-gray-900">
+              {resultEntered ? (
+                <>{match.home_goals} <span className="text-gray-400">:</span> {match.away_goals}</>
+              ) : (
+                <span className="text-gray-300">? : ?</span>
+              )}
             </div>
           )}
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-400">
             {new Date(match.scheduled_at).toLocaleDateString()} {new Date(match.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
 
         {/* Away team */}
-        <div className="flex-1 text-right">
-          <p className="text-sm font-medium text-gray-600">Away</p>
-          <p className="text-lg font-bold text-gray-900">{match.away_team}</p>
+        <div className="flex-1 min-w-0 text-right">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Away</p>
+          <p className="text-base font-bold text-gray-900 truncate">{match.away_team}</p>
         </div>
       </div>
 
       {resultEntered && !readOnly && (
-        <div className="border-t border-gray-200 pt-3 text-center">
+        <div className="border-t border-gray-100 pt-2 text-center">
           <p className="text-xs font-semibold text-green-700">Result Entered</p>
         </div>
       )}

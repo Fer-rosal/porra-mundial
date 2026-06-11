@@ -2,21 +2,27 @@
 
 import { use } from 'react';
 import { useGameStore } from '@/lib/game-store';
+import CopyRecoveryLink from '@/components/CopyRecoveryLink';
+import { buildAdminRecoveryLink } from '@/lib/id-utils';
 
 export default function HistoryPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession } = useGameStore();
+  const { getGame, getIsCreator } = useGameStore();
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="history-access-denied">
         Access denied. Only the game creator can view game history.
       </div>
     );
   }
+
+  const adminRecoveryLink =
+    typeof window !== 'undefined'
+      ? buildAdminRecoveryLink(window.location.origin, gameId, game.adminToken)
+      : '';
 
   // Build lookups
   const matchById = Object.fromEntries(game.matches.map((m) => [m.id, m]));
@@ -52,19 +58,28 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Game History</h1>
         <p className="mt-2 text-gray-600">All predictions, results, and scores</p>
+        {/* Admin Recovery Link */}
+        {adminRecoveryLink && (
+          <div className="mt-3" data-testid="history-recovery-link-section">
+            <CopyRecoveryLink
+              href={adminRecoveryLink}
+              label="Copy Admin Recovery Link"
+            />
+          </div>
+        )}
       </div>
 
       {game.predictions.length === 0 ? (
         <div
-          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
           data-testid="history-empty"
         >
           No predictions submitted yet.
         </div>
       ) : (
         <div>
-          <h2 className="mb-4 text-xl font-bold text-gray-900">Predictions</h2>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <h2 className="mb-4 text-base font-semibold text-gray-900">Predictions</h2>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -101,8 +116,8 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
 
       {game.scorerSelections.length > 0 && (
         <div>
-          <h2 className="mb-4 text-xl font-bold text-gray-900">Scorer Selections</h2>
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <h2 className="mb-4 text-base font-semibold text-gray-900">Scorer Selections</h2>
+          <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -135,7 +150,7 @@ export default function HistoryPage({ params }: { params: Promise<{ gameId: stri
 
       <button
         onClick={handleExportCSV}
-        className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+        className="rounded-xl bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
         data-testid="history-export-btn"
       >
         Export to CSV

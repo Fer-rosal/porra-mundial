@@ -1,8 +1,16 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useGameStore, persistSessionId } from '@/lib/game-store';
+import { useGameStore } from '@/lib/game-store';
 import { useState, useEffect } from 'react';
+import CopyRecoveryLink from '@/components/CopyRecoveryLink';
+import { buildPlayerRecoveryLink } from '@/lib/id-utils';
+import Link from 'next/link';
+
+interface JoinSuccess {
+  gameId: string;
+  playerToken: string;
+}
 
 export function JoinContent() {
   const router = useRouter();
@@ -12,6 +20,7 @@ export function JoinContent() {
   const [playerName, setPlayerName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [joinSuccess, setJoinSuccess] = useState<JoinSuccess | null>(null);
 
   // Pre-fill code from URL query param
   useEffect(() => {
@@ -21,7 +30,7 @@ export function JoinContent() {
     }
   }, [searchParams]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -43,7 +52,7 @@ export function JoinContent() {
 
     setIsJoining(true);
     try {
-      const result = joinGame(trimmedCode, trimmedName);
+      const result = await joinGame(trimmedCode, trimmedName);
 
       if ('error' in result) {
         setError(result.error);
@@ -51,15 +60,62 @@ export function JoinContent() {
         return;
       }
 
-      // Persist the session for this game on this device
-      persistSessionId(result.game.id, result.sessionId);
-
-      router.push(`/games/${result.game.id}`);
+      // Show success screen with recovery link before navigating
+      setJoinSuccess({ gameId: result.game.id, playerToken: result.playerToken });
+      setIsJoining(false);
     } catch {
       setError('Failed to join game. Please try again.');
       setIsJoining(false);
     }
   };
+
+  // Success screen — show recovery link before navigating away
+  if (joinSuccess) {
+    const recoveryLink =
+      typeof window !== 'undefined'
+        ? buildPlayerRecoveryLink(window.location.origin, joinSuccess.gameId, joinSuccess.playerToken)
+        : '';
+
+    return (
+      <div className="min-h-screen bg-white" data-testid="join-success-page">
+        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mb-8 text-center">
+            <div className="mb-4 text-5xl">🎉</div>
+            <h1 className="text-3xl font-bold text-gray-900">You&apos;re in!</h1>
+            <p className="mt-2 text-gray-600">Welcome to the game</p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 p-5 shadow-sm space-y-5" data-testid="join-success-card">
+            {/* Recovery link section */}
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-4" data-testid="join-recovery-link-section">
+              <p className="mb-1 text-sm font-semibold text-orange-900">Your Recovery Link</p>
+              <p className="mb-3 text-xs text-orange-700">
+                Save this link to restore your session from any browser. Keep it handy!
+              </p>
+              {recoveryLink ? (
+                <CopyRecoveryLink
+                  href={recoveryLink}
+                  label="Copy your recovery link"
+                />
+              ) : (
+                <p className="text-xs text-orange-600">
+                  Recovery link not available for this session (you may have rejoined with an existing name).
+                </p>
+              )}
+            </div>
+
+            <Link
+              href={`/games/${joinSuccess.gameId}`}
+              className="block w-full rounded-xl bg-orange-500 px-6 py-3 text-center font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+              data-testid="join-success-continue-btn"
+            >
+              Continue to game
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white" data-testid="join-page">
@@ -72,7 +128,7 @@ export function JoinContent() {
         <form onSubmit={handleSubmit} className="space-y-6" data-testid="join-form">
           {/* Error message */}
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700" data-testid="join-error">
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" data-testid="join-error">
               {error}
             </div>
           )}
@@ -116,7 +172,7 @@ export function JoinContent() {
             <button
               type="submit"
               disabled={isJoining}
-              className="flex-1 rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all flex items-center justify-center gap-2"
               data-testid="join-submit-btn"
             >
               {isJoining && (
@@ -127,7 +183,7 @@ export function JoinContent() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="rounded-lg border border-gray-300 px-6 py-2 font-semibold text-gray-900 hover:bg-gray-50"
+              className="rounded-xl border border-gray-300 px-6 py-2 font-semibold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
               data-testid="join-cancel-btn"
             >
               Cancel

@@ -9,16 +9,16 @@ const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 
 export default function ResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, saveResults } = useGameStore();
+  const { getGame, getIsCreator, saveResults } = useGameStore();
   const [results, setResults] = useState<Record<string, [number, number]>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
 
   const game = getGame(gameId);
-  const mySession = getMySession(gameId);
 
-  if (!game || !mySession || mySession.sessionId !== game.creatorSessionId) {
+  if (!game || !getIsCreator(gameId)) {
     return (
       <div className="text-red-600" data-testid="results-access-denied">
         Access denied. Only the game creator can enter results.
@@ -35,24 +35,27 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setError(null);
     if (Object.keys(results).length === 0) {
       setError('No results entered. Please fill in at least one score.');
       return;
     }
+    setIsSaving(true);
     try {
       const formattedResults = Object.entries(results).map(([matchId, [home, away]]) => ({
         matchId,
         homeGoals: home,
         awayGoals: away,
       }));
-      saveResults(gameId, selectedPhase, formattedResults);
+      await saveResults(gameId, selectedPhase, formattedResults);
       setSaved(true);
       setResults({});
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save results');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -120,11 +123,14 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
 
       <button
         onClick={handleSubmit}
-        disabled={Object.keys(results).length === 0}
+        disabled={Object.keys(results).length === 0 || isSaving}
         className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
         data-testid="results-submit-btn"
       >
-        Save Results
+        {isSaving && (
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+        )}
+        {isSaving ? 'Saving...' : 'Save Results'}
       </button>
     </div>
   );

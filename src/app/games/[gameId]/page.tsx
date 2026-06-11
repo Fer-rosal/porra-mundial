@@ -1,25 +1,26 @@
 'use client';
 
 import { use } from 'react';
-import { useGameStore } from '@/lib/game-store';
+import { useGameStore, persistCreatorSessionId } from '@/lib/game-store';
 import { Copy, Check, Download } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 
 export default function GameOverviewPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, exportGame } = useGameStore();
+  const { getGame, getMySession, getIsCreator, exportGame } = useGameStore();
   const [codeCopied, setCodeCopied] = useState(false);
   const [exportCode, setExportCode] = useState<string | null>(null);
   const [exportCopied, setExportCopied] = useState(false);
+  const [adminReclaimed, setAdminReclaimed] = useState(false);
 
   const game = getGame(gameId);
   const mySession = getMySession(gameId);
-  const isAdmin = !!(game && mySession && game.creatorSessionId === mySession.sessionId);
+  const isAdmin = getIsCreator(gameId) || adminReclaimed;
 
   if (!game) {
     return (
-      <div className="text-red-600" data-testid="game-overview-not-found">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" data-testid="game-overview-not-found">
         Game data not found. It may have been cleared from this browser.
       </div>
     );
@@ -48,15 +49,21 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
     setTimeout(() => setExportCopied(false), 2000);
   };
 
+  const handleReclaimAdmin = () => {
+    if (!game) return;
+    persistCreatorSessionId(gameId, game.creatorSessionId);
+    setAdminReclaimed(true);
+  };
+
   // Find currently open phase
   const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
   const currentPhaseLabel = openPhase ? openPhase.phaseKey : 'No active phase';
 
   return (
-    <div className="space-y-8" data-testid="game-overview-page">
+    <div className="space-y-6" data-testid="game-overview-page">
       {/* Game status */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">Game Status</h2>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">Game Status</h2>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-gray-600">Status</span>
@@ -88,17 +95,17 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Invite section — visible to all players */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm" data-testid="game-invite-section">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">Invite Players</h2>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" data-testid="game-invite-section">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">Invite Players</h2>
         <p className="mb-4 text-gray-600">
           Share this code with players to let them join the game:
         </p>
-        <div className="mb-3 rounded-lg bg-gray-50 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-gray-900">
+        <div className="mb-3 rounded-xl bg-gray-50 px-4 py-3 text-center font-mono text-2xl font-bold tracking-widest text-gray-900">
           {game.inviteCode}
         </div>
         <button
           onClick={copyInviteCode}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
           data-testid="game-copy-invite-btn"
         >
           {codeCopied ? (
@@ -116,8 +123,8 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Players list */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">Players</h2>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">Players</h2>
         {game.players.length === 0 ? (
           <p className="text-gray-600" data-testid="game-players-empty">No players yet</p>
         ) : (
@@ -125,7 +132,7 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
             {game.players.map((player) => (
               <li
                 key={player.sessionId}
-                className="flex items-center gap-2 rounded-lg border border-gray-100 px-4 py-2"
+                className="flex items-center gap-2 rounded-xl border border-gray-100 px-4 py-2.5"
                 data-testid={`game-player-${player.sessionId}`}
               >
                 <span className="text-gray-900">{player.name}</span>
@@ -159,12 +166,12 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
 
       {/* Admin shortcut */}
       {isAdmin && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 p-6">
-          <h2 className="mb-2 text-lg font-bold text-orange-900">Creator Controls</h2>
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-5">
+          <h2 className="mb-2 text-base font-semibold text-orange-900">Creator Controls</h2>
           <p className="mb-4 text-orange-700">Open phases, lock predictions, and enter results.</p>
           <Link
             href={`/games/${gameId}/admin`}
-            className="inline-block rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+            className="inline-block rounded-xl bg-orange-500 px-6 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
             data-testid="game-overview-admin-link"
           >
             Go to Admin Panel
@@ -172,16 +179,36 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
         </div>
       )}
 
+      {/* Reclaim Admin Access — shown when no creator key is present in this browser */}
+      {!getIsCreator(gameId) && !adminReclaimed && (
+        <div
+          className="rounded-xl border border-orange-200 bg-orange-50 p-5"
+          data-testid="game-reclaim-admin-card"
+        >
+          <h2 className="mb-2 text-base font-semibold text-orange-900">Lost Admin Access?</h2>
+          <p className="mb-4 text-orange-700">
+            If you created this game on this browser, you can reclaim admin access.
+          </p>
+          <button
+            onClick={handleReclaimAdmin}
+            className="rounded-xl bg-orange-500 px-6 py-2.5 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+            data-testid="game-reclaim-admin-btn"
+          >
+            Reclaim Admin Access
+          </button>
+        </div>
+      )}
+
       {/* Export section */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h2 className="mb-2 text-xl font-bold text-gray-900">Take Game to Another Browser</h2>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-2 text-base font-semibold text-gray-900">Take Game to Another Browser</h2>
         <p className="mb-4 text-sm text-gray-600">
           Export your game data so you (or another player) can load it in a different browser.
         </p>
         {!exportCode ? (
           <button
             onClick={handleExport}
-            className="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 font-semibold text-white hover:bg-gray-900"
+            className="flex items-center gap-2 rounded-xl bg-gray-800 px-4 py-2.5 font-semibold text-white hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 active:scale-95 transition-all"
             data-testid="game-export-btn"
           >
             <Download size={16} />
@@ -193,20 +220,20 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
               readOnly
               value={exportCode}
               rows={4}
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-700"
+              className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-700"
               data-testid="game-export-code"
             />
             <div className="flex gap-2">
               <button
                 onClick={copyExportCode}
-                className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600"
+                className="flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2 font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
                 data-testid="game-export-copy-btn"
               >
                 {exportCopied ? <><Check size={16} />Copied!</> : <><Copy size={16} />Copy Code</>}
               </button>
               <button
                 onClick={() => setExportCode(null)}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                className="rounded-xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
                 data-testid="game-export-close-btn"
               >
                 Close
@@ -220,8 +247,8 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
       </div>
 
       {/* Rules section */}
-      <div className="rounded-lg border border-gray-200 p-6 shadow-sm">
-        <h2 className="mb-4 text-xl font-bold text-gray-900">How to Play</h2>
+      <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">How to Play</h2>
         <div className="space-y-4 text-gray-600">
           <div>
             <h3 className="font-semibold text-gray-900">Predict Match Results</h3>
