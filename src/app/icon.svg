@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Porra Mundial">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#fff7ed"/>
+  <circle cx="32" cy="30" r="16" fill="url(#g)"/>
+  <path d="M32 17l3.6 7.3 8 1.2-5.8 5.7 1.4 8.1L32 35.5l-7.2 3.8 1.4-8.1-5.8-5.7 8-1.2z" fill="#fff"/>
+  <rect x="22" y="50" width="20" height="6" rx="3" fill="#ea580c"/>
+</svg>

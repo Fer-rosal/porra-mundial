@@ -19,6 +19,13 @@ import type {
   DbScorerSelection,
 } from './types'
 
+type SupabaseLikeError = {
+  message?: string
+  code?: string
+  details?: string | null
+  hint?: string | null
+}
+
 // ─── Domain types ────────────────────────────────────────────────────────────
 
 export type PhaseKey = 'LEAGUE' | 'R16' | 'R8' | 'R4' | 'R2' | 'FINAL'
@@ -134,6 +141,25 @@ function isLocalStorageAvailable(): boolean {
   } catch {
     return false
   }
+}
+
+function formatSupabaseError(context: string, err: SupabaseLikeError | null | undefined): string {
+  if (!err) return context
+
+  const message = err.message ?? ''
+  const details = err.details ?? ''
+  const hint = err.hint ?? ''
+
+  // Typical shape when PostgREST cannot find a relation/table in the project.
+  if (
+    err.code === '42P01'
+    || message.includes('does not exist')
+    || message.includes('Not Found')
+  ) {
+    return 'Supabase schema is missing in this project. Run the SQL migrations in supabase/migrations and try again.'
+  }
+
+  return [context, message, details, hint].filter(Boolean).join(' ')
 }
 
 /**
@@ -365,7 +391,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       // 1. game row
       const { data: gameRow, error: gErr } = await supabase
         .from('games').select('*').eq('id', gameId).single()
-      if (gErr || !gameRow) return null
+      if (gErr) {
+        setError(formatSupabaseError('Failed to load game.', gErr))
+        return null
+      }
+      if (!gameRow) return null
 
       // 2. phases
       const { data: phases } = await supabase
@@ -419,14 +449,17 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     // Unique invite code (retry up to 10x)
     let inviteCode = generateInviteCode()
     for (let i = 0; i < 10; i++) {
-      const { data } = await supabase
+      const { data, error: codeCheckErr } = await supabase
         .from('games').select('id').eq('invite_code', inviteCode).single()
+      if (codeCheckErr && codeCheckErr.code !== 'PGRST116') {
+        throw new Error(formatSupabaseError('Failed to validate invite code.', codeCheckErr))
+      }
       if (!data) break
       inviteCode = generateInviteCode()
     }
 
     // INSERT game
-    await supabase.from('games').insert({
+    const { error: gameInsertErr } = await supabase.from('games').insert({
       id: gameId,
       creator_session_id: creatorSessionId,
       admin_token: adminToken,
@@ -437,6 +470,9 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       created_at: now,
       updated_at: now,
     })
+    if (gameInsertErr) {
+      throw new Error(formatSupabaseError('Failed to create game.', gameInsertErr))
+    }
 
     // INSERT 6 phases
     const phaseRows = ALL_PHASES.map(pk => ({
@@ -448,8 +484,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       opened_at:  pk === 'LEAGUE' ? now : null,
       created_at: now,
     }))
-    const { data: insertedPhases } = await supabase
+    const { data: insertedPhases, error: phaseInsertErr } = await supabase
       .from('tournament_phases').insert(phaseRows).select()
+    if (phaseInsertErr) {
+      throw new Error(formatSupabaseError('Failed to create tournament phases.', phaseInsertErr))
+    }
 
     // Build phaseKey → phase_id map
     const phaseIdMap = new Map<PhaseKey, string>(
@@ -469,10 +508,13 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       teams_confirmed:      m.phase_key === 'LEAGUE',
       created_at:           now,
     }))
-    await supabase.from('matches').insert(matchRows)
+    const { error: matchInsertErr } = await supabase.from('matches').insert(matchRows)
+    if (matchInsertErr) {
+      throw new Error(formatSupabaseError('Failed to seed matches.', matchInsertErr))
+    }
 
     // INSERT creator as player
-    await supabase.from('game_players').insert({
+    const { error: playerInsertErr } = await supabase.from('game_players').insert({
       id:           generateUUID(),
       game_id:      gameId,
       session_id:   creatorSessionId,
@@ -481,6 +523,9 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       total_score:  0,
       joined_at:    now,
     })
+    if (playerInsertErr) {
+      throw new Error(formatSupabaseError('Failed to add creator player.', playerInsertErr))
+    }
 
     // Persist identity keys to localStorage
     persistSessionId(gameId, creatorSessionId)
@@ -491,7 +536,10 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
     // Fetch and return assembled game
     const game = await fetchGame(gameId)
-    return game!
+    if (!game) {
+      throw new Error('Game was created but could not be loaded. Refresh and try again.')
+    }
+    return game
   }
 
   // ─── joinGame ───────────────────────────────────────────────────────────────
@@ -501,8 +549,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     playerName: string
   ): Promise<{ game: LocalGame; sessionId: string; playerToken: string } | { error: string }> {
     // 1. Lookup game
-    const { data: gameRow } = await supabase
+    const { data: gameRow, error: gameLookupErr } = await supabase
       .from('games').select('*').eq('invite_code', inviteCode.toUpperCase()).single()
+    if (gameLookupErr && gameLookupErr.code !== 'PGRST116') {
+      return { error: formatSupabaseError('Failed to look up game.', gameLookupErr) }
+    }
     if (!gameRow) return { error: 'No game found with that code. Check and try again.' }
     if ((gameRow as DbGame).status !== 'OPEN') {
       return { error: 'This game is no longer accepting new players.' }
@@ -511,18 +562,22 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     const gameId = (gameRow as DbGame).id
 
     // 2. Check for existing player with same name (case-insensitive)
-    const { data: existing } = await supabase
+    const { data: existing, error: existingErr } = await supabase
       .from('game_players')
       .select('session_id, player_token')
       .eq('game_id', gameId)
       .ilike('player_name', playerName.trim())
       .single()
+    if (existingErr && existingErr.code !== 'PGRST116') {
+      return { error: formatSupabaseError('Failed to check existing player.', existingErr) }
+    }
 
     if (existing) {
       persistSessionId(gameId, (existing as DbGamePlayer).session_id)
       const game = await fetchGame(gameId)
+      if (!game) return { error: 'Joined game but failed to load it. Please refresh and try again.' }
       return {
-        game: game!,
+        game,
         sessionId: (existing as DbGamePlayer).session_id,
         playerToken: (existing as DbGamePlayer).player_token,
       }
@@ -531,7 +586,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     // 3. New player
     const sessionId   = generateUUID()
     const playerToken = generateUUID()
-    await supabase.from('game_players').insert({
+    const { error: joinInsertErr } = await supabase.from('game_players').insert({
       id:           generateUUID(),
       game_id:      gameId,
       session_id:   sessionId,
@@ -540,12 +595,16 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       total_score:  0,
       joined_at:    new Date().toISOString(),
     })
+    if (joinInsertErr) {
+      return { error: formatSupabaseError('Failed to join game.', joinInsertErr) }
+    }
     persistSessionId(gameId, sessionId)
     if (typeof window !== 'undefined') {
       localStorage.setItem(`porra_mundial_player_token_${gameId}`, playerToken)
     }
     const game = await fetchGame(gameId)
-    return { game: game!, sessionId, playerToken }
+    if (!game) return { error: 'Joined game but failed to load it. Please refresh and try again.' }
+    return { game, sessionId, playerToken }
   }
 
   // ─── getGame — sync from cache ───────────────────────────────────────────────
