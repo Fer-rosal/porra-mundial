@@ -14,7 +14,7 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
 
   if (!game) {
     return (
-      <div className="text-red-600" data-testid="leaderboard-not-found">
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700" data-testid="leaderboard-not-found">
         Game data not found. It may have been cleared from this browser.
       </div>
     );
@@ -23,21 +23,21 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
   const entries = calculateLeaderboard(game);
 
   return (
-    <div className="space-y-8" data-testid="leaderboard-page">
+    <div className="space-y-6" data-testid="leaderboard-page">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Leaderboard</h1>
-        <p className="mt-2 text-gray-600">Rankings for all players</p>
+        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Leaderboard</h1>
+        <p className="mt-1 text-gray-600">Rankings for all players</p>
       </div>
 
       {entries.length === 0 ? (
         <div
-          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
           data-testid="leaderboard-empty"
         >
           No players yet
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
           <LeaderboardTable entries={entries} currentSessionId={mySession?.sessionId} />
         </div>
       )}

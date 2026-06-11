@@ -9,6 +9,15 @@ import {
 } from 'react'
 import { generateUUID, generateInviteCode } from './id-utils'
 import { MATCH_DATA } from './match-data'
+import { supabase, supabaseWithSession } from './supabase'
+import type {
+  DbGame,
+  DbGamePlayer,
+  DbTournamentPhase,
+  DbMatch,
+  DbPrediction,
+  DbScorerSelection,
+} from './types'
 
 // ─── Domain types ────────────────────────────────────────────────────────────
 
@@ -18,6 +27,7 @@ export interface LocalPlayer {
   sessionId: string
   name: string
   joinedAt: string
+  playerToken: string   // UUID v4, generated at join time, never changes
 }
 
 export interface LocalPhase {
@@ -66,6 +76,7 @@ export interface LocalGame {
   name: string
   inviteCode: string
   creatorSessionId: string
+  adminToken: string    // UUID v4, generated at creation time, never changes
   status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED'
   createdAt: string
   updatedAt: string
@@ -76,6 +87,7 @@ export interface LocalGame {
   scorerSelections: LocalScorerSelection[]
 }
 
+// LocalStore is kept for legacy banner detection only (the old localStorage shape)
 export interface LocalStore {
   version: 1
   games: Record<string, LocalGame>
@@ -89,9 +101,29 @@ export interface LeaderboardEntry {
   totalScore: number
 }
 
+// ─── Input types ──────────────────────────────────────────────────────────────
+
+interface PredictionInput {
+  matchId: string
+  homeGoalsPredicted: number
+  awayGoalsPredicted: number
+}
+
+interface ResultInput {
+  matchId: string
+  homeGoals: number
+  awayGoals: number
+}
+
+interface MatchTeamUpdate {
+  matchId: string
+  homeTeam: string
+  awayTeam: string
+}
+
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'porra_mundial_store'
+const LEGACY_STORAGE_KEY = 'porra_mundial_store'
 
 function isLocalStorageAvailable(): boolean {
   try {
@@ -104,25 +136,111 @@ function isLocalStorageAvailable(): boolean {
   }
 }
 
-function readStore(): LocalStore {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { version: 1, games: {} }
-    const parsed = JSON.parse(raw) as LocalStore
-    return parsed
-  } catch {
-    return { version: 1, games: {} }
+/**
+ * Reads the per-game session ID from localStorage.
+ * This is the "current player" identity for this browser.
+ */
+function getSessionId(gameId: string): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(`porra_mundial_session_${gameId}`)
+}
+
+function getCreatorSessionId(gameId: string): string | null {
+  if (typeof window === 'undefined') return null
+  return localStorage.getItem(`porra_mundial_creator_${gameId}`)
+}
+
+/**
+ * Persists the current player's sessionId for a given game.
+ */
+export function persistSessionId(gameId: string, sessionId: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`porra_mundial_session_${gameId}`, sessionId)
   }
 }
 
-function writeStore(store: LocalStore): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
-  } catch (e: unknown) {
-    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-      throw new Error('Not enough browser storage. Please delete some old games and try again.')
-    }
-    throw e
+/**
+ * Persists the creator's sessionId in a dedicated key that is never overwritten
+ * by the join flow. This allows the creator to join their own game as a named
+ * player without losing admin access.
+ */
+export function persistCreatorSessionId(gameId: string, sessionId: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`porra_mundial_creator_${gameId}`, sessionId)
+  }
+}
+
+// ─── DB → LocalGame mapper ────────────────────────────────────────────────────
+
+function dbToLocalGame(
+  g: DbGame,
+  phases: DbTournamentPhase[],
+  matches: DbMatch[],
+  players: DbGamePlayer[],
+  preds: DbPrediction[],
+  scorers: DbScorerSelection[]
+): LocalGame {
+  // Build a map from game_player.id → player for prediction/scorer lookup
+  const playerById = new Map(players.map(p => [p.id, p]))
+
+  return {
+    id:               g.id,
+    name:             g.name,
+    inviteCode:       g.invite_code,
+    creatorSessionId: g.creator_session_id,
+    adminToken:       g.admin_token,
+    status:           g.status,
+    createdAt:        g.created_at,
+    updatedAt:        g.updated_at ?? g.created_at,
+    players: players.map(p => ({
+      sessionId:   p.session_id,
+      name:        p.player_name,
+      joinedAt:    p.joined_at,
+      playerToken: p.player_token,
+    })),
+    phases: phases.map(ph => ({
+      phaseKey:  ph.phase_key as PhaseKey,
+      isOpen:    ph.is_open,
+      isLocked:  ph.is_locked,
+      openedAt:  ph.opened_at ?? null,
+      lockedAt:  ph.locked_at ?? null,
+    })),
+    matches: matches.map(m => ({
+      id:             m.id,
+      phaseKey:       m.phase_key as PhaseKey,
+      matchNumber:    m.match_number,
+      homeTeam:       m.home_team,
+      awayTeam:       m.away_team,
+      scheduledAt:    m.scheduled_at,
+      homeGoals:      m.home_goals ?? null,
+      awayGoals:      m.away_goals ?? null,
+      resultEntered:  m.result_entered,
+      teamsConfirmed: m.teams_confirmed,
+    })),
+    predictions: preds.map(pr => {
+      const pl = playerById.get(pr.game_player_id)
+      return {
+        id:                  pr.id,
+        sessionId:           pl?.session_id ?? '',
+        matchId:             pr.match_id,
+        homeGoalsPredicted:  pr.home_goals_predicted,
+        awayGoalsPredicted:  pr.away_goals_predicted,
+        createdAt:           pr.created_at,
+        updatedAt:           pr.updated_at,
+      }
+    }),
+    scorerSelections: scorers.map(s => {
+      const pl = playerById.get(s.game_player_id)
+      return {
+        id:          s.id,
+        phaseKey:    s.phase_key as PhaseKey,
+        sessionId:   pl?.session_id ?? '',
+        playerName:  s.player_name,
+        isLocked:    s.is_locked,
+        createdAt:   s.created_at,
+        updatedAt:   s.updated_at,
+      }
+    }),
   }
 }
 
@@ -130,72 +248,49 @@ function writeStore(store: LocalStore): void {
 
 const ALL_PHASES: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL']
 
-function createInitialPhases(now: string): LocalPhase[] {
-  return ALL_PHASES.map((phaseKey) => ({
-    phaseKey,
-    isOpen: phaseKey === 'LEAGUE',
-    isLocked: false,
-    openedAt: phaseKey === 'LEAGUE' ? now : null,
-    lockedAt: null,
-  }))
-}
-
-function createMatchesFromData(): LocalMatch[] {
-  return MATCH_DATA.map((m) => ({
-    id: `match-${m.phase_key}-${m.match_number}`,
-    phaseKey: m.phase_key as PhaseKey,
-    matchNumber: m.match_number,
-    homeTeam: m.home_team,
-    awayTeam: m.away_team,
-    scheduledAt: m.scheduled_at,
-    homeGoals: null,
-    awayGoals: null,
-    resultEntered: false,
-    teamsConfirmed: m.phase_key === 'LEAGUE',
-  }))
-}
-
 // ─── Context value type ───────────────────────────────────────────────────────
 
 interface GameStoreContextValue {
+  // Loading / error state
+  isLoading: boolean
+  error: string | null
+  hasLegacyData: boolean       // true if old porra_mundial_store key exists with games
+  dismissLegacyBanner: () => void
+
+  // In-memory cache
   games: Record<string, LocalGame>
   storageAvailable: boolean
-  createGame: (name: string) => LocalGame
-  joinGame: (inviteCode: string, playerName: string) => { game: LocalGame; sessionId: string } | { error: string }
+
+  // Sync reads (from cache / localStorage)
   getGame: (gameId: string) => LocalGame | null
   getMySession: (gameId: string) => LocalPlayer | null
   getIsCreator: (gameId: string) => boolean
-  savePrediction: (
-    gameId: string,
-    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
-  ) => void
-  overridePrediction: (
-    gameId: string,
-    targetSessionId: string,
-    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
-  ) => void
-  overridePredictions: (
-    gameId: string,
-    targetSessionId: string,
-    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
-  ) => void
-  savePredictions: (
-    gameId: string,
-    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
-  ) => void
-  saveScorerSelection: (gameId: string, phaseKey: PhaseKey, playerName: string) => void
-  openPhase: (gameId: string, phaseKey: PhaseKey) => void
-  lockPhase: (gameId: string, phaseKey: PhaseKey) => void
-  saveResults: (
-    gameId: string,
-    phaseKey: PhaseKey,
-    results: Array<{ matchId: string; homeGoals: number; awayGoals: number }>
-  ) => void
-  deleteGame: (gameId: string) => void
-  exportGame: (gameId: string) => string
-  importGame: (encoded: string) => { game: LocalGame; sessionId: string | null } | { error: string }
-  updateMatchTeams: (gameId: string, matchId: string, homeTeam: string, awayTeam: string) => void
-  savePhaseMatches: (gameId: string, updates: Array<{ matchId: string; homeTeam: string; awayTeam: string }>) => void
+
+  // Async — DB backed
+  fetchGame: (gameId: string) => Promise<LocalGame | null>
+  createGame: (name: string) => Promise<LocalGame>
+  joinGame: (inviteCode: string, playerName: string) => Promise<
+    { game: LocalGame; sessionId: string; playerToken: string } | { error: string }
+  >
+  redeemPlayerToken: (gameId: string, token: string) => Promise<
+    { sessionId: string; playerName: string } | { error: 'not_found' | 'no_game' }
+  >
+  redeemAdminToken: (gameId: string, token: string) => Promise<
+    { sessionId: string } | { error: 'not_found' | 'no_game' }
+  >
+  savePrediction:      (gameId: string, p: PredictionInput) => Promise<void>
+  savePredictions:     (gameId: string, ps: PredictionInput[]) => Promise<void>
+  overridePrediction:  (gameId: string, targetSessionId: string, p: PredictionInput) => Promise<void>
+  overridePredictions: (gameId: string, targetSessionId: string, ps: PredictionInput[]) => Promise<void>
+  saveScorerSelection: (gameId: string, phaseKey: PhaseKey, playerName: string) => Promise<void>
+  openPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
+  lockPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
+  saveResults:         (gameId: string, phaseKey: PhaseKey, results: ResultInput[]) => Promise<void>
+  deleteGame:          (gameId: string) => Promise<void>
+  exportGame:          (gameId: string) => string      // still sync — encodes in-memory cache
+  importGame:          (encoded: string) => Promise<{ game: LocalGame; sessionId: string | null } | { error: string }>
+  updateMatchTeams:    (gameId: string, matchId: string, homeTeam: string, awayTeam: string) => Promise<void>
+  savePhaseMatches:    (gameId: string, updates: MatchTeamUpdate[]) => Promise<void>
 }
 
 const GameStoreContext = createContext<GameStoreContextValue | null>(null)
@@ -203,131 +298,274 @@ const GameStoreContext = createContext<GameStoreContextValue | null>(null)
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function GameStoreProvider({ children }: { children: ReactNode }) {
-  const [games, setGames] = useState<Record<string, LocalGame>>({})
+  const [games, setGames]                     = useState<Record<string, LocalGame>>({})
   const [storageAvailable, setStorageAvailable] = useState(true)
+  const [isLoading, setIsLoading]             = useState(false)
+  const [error, setError]                     = useState<string | null>(null)
+  const [hasLegacyData, setHasLegacyData]     = useState(false)
 
-  // Load from localStorage on mount (client-side only)
+  // On mount: check localStorage availability and legacy data flag
   useEffect(() => {
     if (typeof window === 'undefined') return
     const available = isLocalStorageAvailable()
     setStorageAvailable(available)
     if (available) {
-      const store = readStore()
-      setGames(store.games)
+      const dismissed = localStorage.getItem('porra_mundial_legacy_dismissed')
+      if (!dismissed) {
+        try {
+          const raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+          if (raw) {
+            const parsed = JSON.parse(raw) as LocalStore
+            if (Object.keys(parsed?.games ?? {}).length > 0) {
+              setHasLegacyData(true)
+            }
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
     }
   }, [])
 
-  // Helper: persist a games map update
-  function persist(updatedGames: Record<string, LocalGame>) {
-    setGames(updatedGames)
-    if (storageAvailable) {
-      writeStore({ version: 1, games: updatedGames })
+  // Refetch open games when tab becomes visible
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        Object.keys(games).forEach(gameId => {
+          fetchGame(gameId).catch(() => {/* ignore — error already set in state */})
+        })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Object.keys(games).join(',')])
+
+  // ── Cache helper ──
+
+  function setCachedGame(game: LocalGame) {
+    setGames(prev => ({ ...prev, [game.id]: game }))
+  }
+
+  // ── Legacy banner ──
+
+  function dismissLegacyBanner() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('porra_mundial_legacy_dismissed', '1')
+    }
+    setHasLegacyData(false)
+  }
+
+  // ─── fetchGame ──────────────────────────────────────────────────────────────
+
+  async function fetchGame(gameId: string): Promise<LocalGame | null> {
+    setIsLoading(true)
+    setError(null)
+    try {
+      // 1. game row
+      const { data: gameRow, error: gErr } = await supabase
+        .from('games').select('*').eq('id', gameId).single()
+      if (gErr || !gameRow) return null
+
+      // 2. phases
+      const { data: phases } = await supabase
+        .from('tournament_phases').select('*').eq('game_id', gameId)
+
+      // 3. matches (via tournament_phase_id IN ...)
+      const phaseIds = (phases ?? []).map((p: DbTournamentPhase) => p.id)
+      const { data: matchRows } = await supabase
+        .from('matches').select('*').in('tournament_phase_id', phaseIds)
+
+      // 4. players
+      const { data: players } = await supabase
+        .from('game_players').select('*').eq('game_id', gameId)
+
+      // 5. predictions
+      const playerIds = (players ?? []).map((p: DbGamePlayer) => p.id)
+      const { data: preds } = await supabase
+        .from('predictions').select('*').in('game_player_id', playerIds)
+
+      // 6. scorer selections
+      const { data: scorers } = await supabase
+        .from('scorer_selections').select('*').in('game_player_id', playerIds)
+
+      const localGame = dbToLocalGame(
+        gameRow as DbGame,
+        (phases ?? []) as DbTournamentPhase[],
+        (matchRows ?? []) as DbMatch[],
+        (players ?? []) as DbGamePlayer[],
+        (preds ?? []) as DbPrediction[],
+        (scorers ?? []) as DbScorerSelection[]
+      )
+      setCachedGame(localGame)
+      return localGame
+    } catch {
+      setError('Could not connect to game server. Check your connection and refresh.')
+      return null
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  // ── Actions ──
+  // ─── createGame ─────────────────────────────────────────────────────────────
 
-  function createGame(name: string): LocalGame {
-    const sessionId = generateUUID()
+  async function createGame(name: string): Promise<LocalGame> {
+    const gameId             = generateUUID()
+    const creatorSessionId   = generateUUID()
+    const adminToken         = generateUUID()
+    const creatorPlayerToken = generateUUID()
+    const now                = new Date().toISOString()
 
-    // Generate unique invite code (retry up to 10 times)
+    // Unique invite code (retry up to 10x)
     let inviteCode = generateInviteCode()
     for (let i = 0; i < 10; i++) {
-      const collision = Object.values(games).some((g) => g.inviteCode === inviteCode)
-      if (!collision) break
+      const { data } = await supabase
+        .from('games').select('id').eq('invite_code', inviteCode).single()
+      if (!data) break
       inviteCode = generateInviteCode()
     }
 
-    const now = new Date().toISOString()
-    const game: LocalGame = {
-      id: generateUUID(),
+    // INSERT game
+    await supabase.from('games').insert({
+      id: gameId,
+      creator_session_id: creatorSessionId,
+      admin_token: adminToken,
       name,
-      inviteCode,
-      creatorSessionId: sessionId,
+      invite_code: inviteCode,
       status: 'OPEN',
-      createdAt: now,
-      updatedAt: now,
-      players: [
-        {
-          sessionId,
-          name: 'Creator',
-          joinedAt: now,
-        },
-      ],
-      phases: createInitialPhases(now),
-      matches: createMatchesFromData(),
-      predictions: [],
-      scorerSelections: [],
-    }
+      tournament_phase: 'LEAGUE',
+      created_at: now,
+      updated_at: now,
+    })
 
-    const updatedGames = { ...games, [game.id]: game }
-    persist(updatedGames)
-    // Write the creator key so admin access survives the creator joining as a player
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(`porra_mundial_creator_${game.id}`, sessionId)
-    }
-    return game
-  }
+    // INSERT 6 phases
+    const phaseRows = ALL_PHASES.map(pk => ({
+      id:         generateUUID(),
+      game_id:    gameId,
+      phase_key:  pk,
+      is_open:    pk === 'LEAGUE',
+      is_locked:  false,
+      opened_at:  pk === 'LEAGUE' ? now : null,
+      created_at: now,
+    }))
+    const { data: insertedPhases } = await supabase
+      .from('tournament_phases').insert(phaseRows).select()
 
-  function joinGame(
-    inviteCode: string,
-    playerName: string
-  ): { game: LocalGame; sessionId: string } | { error: string } {
-    const game = Object.values(games).find(
-      (g) => g.inviteCode === inviteCode.toUpperCase()
+    // Build phaseKey → phase_id map
+    const phaseIdMap = new Map<PhaseKey, string>(
+      ((insertedPhases ?? []) as DbTournamentPhase[]).map(p => [p.phase_key as PhaseKey, p.id])
     )
 
-    if (!game) {
-      return { error: 'Game not found. Check the code and try again.' }
+    // Bulk INSERT 104 matches
+    const matchRows = MATCH_DATA.map(m => ({
+      id:                   `${gameId}-match-${m.phase_key}-${m.match_number}`,
+      tournament_phase_id:  phaseIdMap.get(m.phase_key as PhaseKey)!,
+      phase_key:            m.phase_key,
+      match_number:         m.match_number,
+      home_team:            m.home_team,
+      away_team:            m.away_team,
+      scheduled_at:         m.scheduled_at,
+      result_entered:       false,
+      teams_confirmed:      m.phase_key === 'LEAGUE',
+      created_at:           now,
+    }))
+    await supabase.from('matches').insert(matchRows)
+
+    // INSERT creator as player
+    await supabase.from('game_players').insert({
+      id:           generateUUID(),
+      game_id:      gameId,
+      session_id:   creatorSessionId,
+      player_name:  'Creator',
+      player_token: creatorPlayerToken,
+      total_score:  0,
+      joined_at:    now,
+    })
+
+    // Persist identity keys to localStorage
+    persistSessionId(gameId, creatorSessionId)
+    persistCreatorSessionId(gameId, creatorSessionId)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`porra_mundial_admin_token_${gameId}`, adminToken)
     }
 
-    if (game.status !== 'OPEN') {
+    // Fetch and return assembled game
+    const game = await fetchGame(gameId)
+    return game!
+  }
+
+  // ─── joinGame ───────────────────────────────────────────────────────────────
+
+  async function joinGame(
+    inviteCode: string,
+    playerName: string
+  ): Promise<{ game: LocalGame; sessionId: string; playerToken: string } | { error: string }> {
+    // 1. Lookup game
+    const { data: gameRow } = await supabase
+      .from('games').select('*').eq('invite_code', inviteCode.toUpperCase()).single()
+    if (!gameRow) return { error: 'No game found with that code. Check and try again.' }
+    if ((gameRow as DbGame).status !== 'OPEN') {
       return { error: 'This game is no longer accepting new players.' }
     }
 
-    // Check if player with same name already exists — re-use their session
-    const existing = game.players.find(
-      (p) => p.name.toLowerCase() === playerName.trim().toLowerCase()
-    )
+    const gameId = (gameRow as DbGame).id
+
+    // 2. Check for existing player with same name (case-insensitive)
+    const { data: existing } = await supabase
+      .from('game_players')
+      .select('session_id, player_token')
+      .eq('game_id', gameId)
+      .ilike('player_name', playerName.trim())
+      .single()
+
     if (existing) {
-      return { game, sessionId: existing.sessionId }
+      persistSessionId(gameId, (existing as DbGamePlayer).session_id)
+      const game = await fetchGame(gameId)
+      return {
+        game: game!,
+        sessionId: (existing as DbGamePlayer).session_id,
+        playerToken: (existing as DbGamePlayer).player_token,
+      }
     }
 
-    const now = new Date().toISOString()
-    const sessionId = generateUUID()
-    const newPlayer: LocalPlayer = {
-      sessionId,
-      name: playerName.trim(),
-      joinedAt: now,
+    // 3. New player
+    const sessionId   = generateUUID()
+    const playerToken = generateUUID()
+    await supabase.from('game_players').insert({
+      id:           generateUUID(),
+      game_id:      gameId,
+      session_id:   sessionId,
+      player_name:  playerName.trim(),
+      player_token: playerToken,
+      total_score:  0,
+      joined_at:    new Date().toISOString(),
+    })
+    persistSessionId(gameId, sessionId)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`porra_mundial_player_token_${gameId}`, playerToken)
     }
-
-    const updatedGame: LocalGame = {
-      ...game,
-      players: [...game.players, newPlayer],
-      updatedAt: now,
-    }
-
-    const updatedGames = { ...games, [game.id]: updatedGame }
-    persist(updatedGames)
-    return { game: updatedGame, sessionId }
+    const game = await fetchGame(gameId)
+    return { game: game!, sessionId, playerToken }
   }
+
+  // ─── getGame — sync from cache ───────────────────────────────────────────────
 
   function getGame(gameId: string): LocalGame | null {
     return games[gameId] ?? null
   }
 
+  // ─── getMySession — sync from cache + localStorage ──────────────────────────
+
   function getMySession(gameId: string): LocalPlayer | null {
-    // The "current player" is identified by looking up which player was stored
-    // for this game in the current browser session.
-    // We store a per-game sessionId reference in a separate localStorage key.
     if (typeof window === 'undefined') return null
-    const key = `porra_mundial_session_${gameId}`
-    const sessionId = localStorage.getItem(key)
+    const sessionId = getSessionId(gameId)
     if (!sessionId) return null
     const game = games[gameId]
     if (!game) return null
     return game.players.find((p) => p.sessionId === sessionId) ?? null
   }
+
+  // ─── getIsCreator — sync, checks dedicated creator key ──────────────────────
 
   function getIsCreator(gameId: string): boolean {
     if (typeof window === 'undefined') return false
@@ -339,15 +577,12 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     const storedCreatorId = localStorage.getItem(creatorKey)
 
     if (storedCreatorId) {
-      // Creator key exists — check it matches (guards against stale/invalid keys)
       return storedCreatorId === game.creatorSessionId
     }
 
     // Migration: no creator key yet — check if current session key IS the creator session
-    // This covers creators who created the game before this fix was deployed
     const currentSessionId = localStorage.getItem(sessionKey)
     if (currentSessionId && currentSessionId === game.creatorSessionId) {
-      // Backfill: write the creator key for future calls
       localStorage.setItem(creatorKey, game.creatorSessionId)
       return true
     }
@@ -355,269 +590,270 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     return false
   }
 
-  function savePrediction(
+  // ─── redeemPlayerToken ───────────────────────────────────────────────────────
+
+  async function redeemPlayerToken(
     gameId: string,
-    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-
-    const mySession = getMySession(gameId)
-    if (!mySession) return
-
-    // IMMUTABILITY: if prediction already exists for this player+match, do nothing
-    const existing = game.predictions.find(
-      (p) => p.matchId === prediction.matchId && p.sessionId === mySession.sessionId
-    )
-    if (existing) return
-
-    const now = new Date().toISOString()
-    const newPrediction: LocalPrediction = {
-      id: generateUUID(),
-      sessionId: mySession.sessionId,
-      matchId: prediction.matchId,
-      homeGoalsPredicted: prediction.homeGoalsPredicted,
-      awayGoalsPredicted: prediction.awayGoalsPredicted,
-      createdAt: now,
-      updatedAt: now,
+    token: string
+  ): Promise<{ sessionId: string; playerName: string } | { error: 'not_found' | 'no_game' }> {
+    // Check cache first
+    const cachedGame = games[gameId]
+    if (cachedGame) {
+      const player = cachedGame.players.find(p => p.playerToken === token)
+      if (!player) return { error: 'not_found' }
+      return { sessionId: player.sessionId, playerName: player.name }
     }
-    const updatedPredictions = [...game.predictions, newPrediction]
 
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now },
+    // Fallback: fetch from DB
+    const { data: gameRow } = await supabase
+      .from('games').select('id').eq('id', gameId).single()
+    if (!gameRow) return { error: 'no_game' }
+
+    const { data: player } = await supabase
+      .from('game_players')
+      .select('session_id, player_name')
+      .eq('game_id', gameId)
+      .eq('player_token', token)
+      .single()
+
+    if (!player) return { error: 'not_found' }
+    return {
+      sessionId:  (player as DbGamePlayer).session_id,
+      playerName: (player as DbGamePlayer).player_name,
     }
-    persist(updatedGames)
   }
 
-  function overridePrediction(
+  // ─── redeemAdminToken ────────────────────────────────────────────────────────
+
+  async function redeemAdminToken(
     gameId: string,
-    targetSessionId: string,
-    prediction: { matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-
-    // Only the game creator may override
-    if (!getIsCreator(gameId)) return
-
-    const now = new Date().toISOString()
-    const existing = game.predictions.find(
-      (p) => p.matchId === prediction.matchId && p.sessionId === targetSessionId
-    )
-
-    let updatedPredictions: LocalPrediction[]
-    if (existing) {
-      // Admin overwrite: update existing
-      updatedPredictions = game.predictions.map((p) =>
-        p.id === existing.id
-          ? {
-              ...p,
-              homeGoalsPredicted: prediction.homeGoalsPredicted,
-              awayGoalsPredicted: prediction.awayGoalsPredicted,
-              updatedAt: now,
-            }
-          : p
-      )
-    } else {
-      // Admin create: insert new prediction on behalf of targetSessionId
-      const newPrediction: LocalPrediction = {
-        id: generateUUID(),
-        sessionId: targetSessionId,
-        matchId: prediction.matchId,
-        homeGoalsPredicted: prediction.homeGoalsPredicted,
-        awayGoalsPredicted: prediction.awayGoalsPredicted,
-        createdAt: now,
-        updatedAt: now,
-      }
-      updatedPredictions = [...game.predictions, newPrediction]
+    token: string
+  ): Promise<{ sessionId: string } | { error: 'not_found' | 'no_game' }> {
+    // Check cache first
+    const cachedGame = games[gameId]
+    if (cachedGame) {
+      if (cachedGame.adminToken !== token) return { error: 'not_found' }
+      return { sessionId: cachedGame.creatorSessionId }
     }
 
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now },
-    }
-    persist(updatedGames)
+    // Fallback: fetch from DB
+    const { data: gameRow } = await supabase
+      .from('games')
+      .select('creator_session_id, admin_token')
+      .eq('id', gameId)
+      .single()
+
+    if (!gameRow) return { error: 'no_game' }
+    if ((gameRow as DbGame).admin_token !== token) return { error: 'not_found' }
+    return { sessionId: (gameRow as DbGame).creator_session_id }
   }
 
-  function overridePredictions(
-    gameId: string,
-    targetSessionId: string,
-    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-    if (!getIsCreator(gameId)) return
+  // ─── savePredictions ────────────────────────────────────────────────────────
+
+  async function savePredictions(gameId: string, predictions: PredictionInput[]): Promise<void> {
+    const mySessionId = getSessionId(gameId)
+    if (!mySessionId) return
+
+    const { data: player } = await supabase
+      .from('game_players')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('session_id', mySessionId)
+      .single()
+    if (!player) return
 
     const now = new Date().toISOString()
-    let updatedPredictions = [...game.predictions]
+    const rows = predictions.map(p => ({
+      id:                    generateUUID(),
+      match_id:              p.matchId,
+      game_player_id:        (player as DbGamePlayer).id,
+      home_goals_predicted:  p.homeGoalsPredicted,
+      away_goals_predicted:  p.awayGoalsPredicted,
+      created_at:            now,
+      updated_at:            now,
+    }))
 
-    for (const prediction of predictions) {
-      const existing = updatedPredictions.find(
-        (p) => p.matchId === prediction.matchId && p.sessionId === targetSessionId
-      )
-      if (existing) {
-        updatedPredictions = updatedPredictions.map((p) =>
-          p.id === existing.id
-            ? { ...p, homeGoalsPredicted: prediction.homeGoalsPredicted, awayGoalsPredicted: prediction.awayGoalsPredicted, updatedAt: now }
-            : p
-        )
-      } else {
-        updatedPredictions = [
-          ...updatedPredictions,
-          {
-            id: generateUUID(),
-            sessionId: targetSessionId,
-            matchId: prediction.matchId,
-            homeGoalsPredicted: prediction.homeGoalsPredicted,
-            awayGoalsPredicted: prediction.awayGoalsPredicted,
-            createdAt: now,
-            updatedAt: now,
-          },
-        ]
-      }
-    }
-
-    persist({ ...games, [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now } })
-  }
-
-  function savePredictions(
-    gameId: string,
-    predictions: Array<{ matchId: string; homeGoalsPredicted: number; awayGoalsPredicted: number }>
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-    const mySession = getMySession(gameId)
-    if (!mySession) return
-
-    const now = new Date().toISOString()
-    const sessionId = mySession.sessionId
-    let updatedPredictions = [...game.predictions]
-
-    for (const prediction of predictions) {
-      // Immutability: skip if already saved for this session+match
-      const alreadyExists = updatedPredictions.some(
-        (p) => p.matchId === prediction.matchId && p.sessionId === sessionId
-      )
-      if (alreadyExists) continue
-
-      updatedPredictions = [
-        ...updatedPredictions,
-        {
-          id: generateUUID(),
-          sessionId,
-          matchId: prediction.matchId,
-          homeGoalsPredicted: prediction.homeGoalsPredicted,
-          awayGoalsPredicted: prediction.awayGoalsPredicted,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]
-    }
-
-    persist({ ...games, [gameId]: { ...game, predictions: updatedPredictions, updatedAt: now } })
-  }
-
-  function saveScorerSelection(gameId: string, phaseKey: PhaseKey, playerName: string): void {
-    const game = games[gameId]
-    if (!game) return
-
-    const mySession = getMySession(gameId)
-    if (!mySession) return
-
-    const now = new Date().toISOString()
-    const existing = game.scorerSelections.find(
-      (s) => s.phaseKey === phaseKey && s.sessionId === mySession.sessionId
-    )
-
-    // Scorer selection is final once submitted — no changes allowed
-    if (existing) return
-
-    const newSelection: LocalScorerSelection = {
-      id: generateUUID(),
-      phaseKey,
-      sessionId: mySession.sessionId,
-      playerName,
-      isLocked: false,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const updatedSelections = [...game.scorerSelections, newSelection]
-
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, scorerSelections: updatedSelections, updatedAt: now },
-    }
-    persist(updatedGames)
-  }
-
-  function openPhase(gameId: string, phaseKey: PhaseKey): void {
-    const game = games[gameId]
-    if (!game) return
-
-    const now = new Date().toISOString()
-    const updatedPhases = game.phases.map((p) =>
-      p.phaseKey === phaseKey ? { ...p, isOpen: true, openedAt: now } : p
-    )
-
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, phases: updatedPhases, updatedAt: now },
-    }
-    persist(updatedGames)
-  }
-
-  function lockPhase(gameId: string, phaseKey: PhaseKey): void {
-    const game = games[gameId]
-    if (!game) return
-
-    const now = new Date().toISOString()
-    const updatedPhases = game.phases.map((p) =>
-      p.phaseKey === phaseKey ? { ...p, isLocked: true, lockedAt: now } : p
-    )
-
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, phases: updatedPhases, updatedAt: now },
-    }
-    persist(updatedGames)
-  }
-
-  function saveResults(
-    gameId: string,
-    _phaseKey: PhaseKey,
-    results: Array<{ matchId: string; homeGoals: number; awayGoals: number }>
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-
-    const now = new Date().toISOString()
-    const updatedMatches = game.matches.map((m) => {
-      const result = results.find((r) => r.matchId === m.id)
-      if (!result) return m
-      return {
-        ...m,
-        homeGoals: result.homeGoals,
-        awayGoals: result.awayGoals,
-        resultEntered: true,
-      }
+    // ON CONFLICT DO NOTHING enforces player prediction immutability
+    await supabase.from('predictions').upsert(rows, {
+      onConflict: 'match_id,game_player_id',
+      ignoreDuplicates: true,
     })
 
-    const updatedGames = {
-      ...games,
-      [gameId]: { ...game, matches: updatedMatches, updatedAt: now },
-    }
-    persist(updatedGames)
+    await fetchGame(gameId)
   }
 
-  function deleteGame(gameId: string): void {
-    const { [gameId]: _removed, ...remaining } = games
-    persist(remaining)
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(`porra_mundial_session_${gameId}`)
-      localStorage.removeItem(`porra_mundial_creator_${gameId}`)
-    }
+  // ─── savePrediction (single) ────────────────────────────────────────────────
+
+  async function savePrediction(gameId: string, p: PredictionInput): Promise<void> {
+    return savePredictions(gameId, [p])
   }
+
+  // ─── overridePredictions (admin) ────────────────────────────────────────────
+
+  async function overridePredictions(
+    gameId: string,
+    targetSessionId: string,
+    predictions: PredictionInput[]
+  ): Promise<void> {
+    if (!getIsCreator(gameId)) return
+
+    const { data: player } = await supabase
+      .from('game_players')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('session_id', targetSessionId)
+      .single()
+    if (!player) return
+
+    const now = new Date().toISOString()
+    const rows = predictions.map(p => ({
+      id:                    generateUUID(),
+      match_id:              p.matchId,
+      game_player_id:        (player as DbGamePlayer).id,
+      home_goals_predicted:  p.homeGoalsPredicted,
+      away_goals_predicted:  p.awayGoalsPredicted,
+      created_at:            now,
+      updated_at:            now,
+    }))
+
+    // ON CONFLICT DO UPDATE — admin CAN overwrite
+    await supabase.from('predictions').upsert(rows, {
+      onConflict: 'match_id,game_player_id',
+      ignoreDuplicates: false,
+    })
+
+    await fetchGame(gameId)
+  }
+
+  // ─── overridePrediction (single) ────────────────────────────────────────────
+
+  async function overridePrediction(
+    gameId: string,
+    targetSessionId: string,
+    p: PredictionInput
+  ): Promise<void> {
+    return overridePredictions(gameId, targetSessionId, [p])
+  }
+
+  // ─── saveScorerSelection ────────────────────────────────────────────────────
+
+  async function saveScorerSelection(
+    gameId: string,
+    phaseKey: PhaseKey,
+    playerName: string
+  ): Promise<void> {
+    const mySessionId = getSessionId(gameId)
+    if (!mySessionId) return
+
+    const { data: player } = await supabase
+      .from('game_players')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('session_id', mySessionId)
+      .single()
+    if (!player) return
+
+    // Look up the phase row to get tournament_phase_id
+    const { data: phaseRow } = await supabase
+      .from('tournament_phases')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('phase_key', phaseKey)
+      .single()
+    if (!phaseRow) return
+
+    const now = new Date().toISOString()
+    const row = {
+      id:                   generateUUID(),
+      tournament_phase_id:  (phaseRow as DbTournamentPhase).id,
+      game_player_id:       (player as DbGamePlayer).id,
+      phase_key:            phaseKey,
+      player_name:          playerName,
+      goals_scored:         0,
+      is_locked:            false,
+      created_at:           now,
+      updated_at:           now,
+    }
+
+    // Scorer selection is final once submitted — ON CONFLICT DO NOTHING
+    await supabase.from('scorer_selections').upsert(row, {
+      onConflict: 'tournament_phase_id,game_player_id',
+      ignoreDuplicates: true,
+    })
+
+    await fetchGame(gameId)
+  }
+
+  // ─── openPhase ──────────────────────────────────────────────────────────────
+
+  async function openPhase(gameId: string, phaseKey: PhaseKey): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+    const client = supabaseWithSession(creatorSessionId)
+    await client.from('tournament_phases')
+      .update({ is_open: true, opened_at: new Date().toISOString() })
+      .eq('game_id', gameId).eq('phase_key', phaseKey)
+    await fetchGame(gameId)
+  }
+
+  // ─── lockPhase ──────────────────────────────────────────────────────────────
+
+  async function lockPhase(gameId: string, phaseKey: PhaseKey): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+    const client = supabaseWithSession(creatorSessionId)
+    await client.from('tournament_phases')
+      .update({ is_locked: true, locked_at: new Date().toISOString() })
+      .eq('game_id', gameId).eq('phase_key', phaseKey)
+    await fetchGame(gameId)
+  }
+
+  // ─── saveResults ────────────────────────────────────────────────────────────
+
+  async function saveResults(
+    gameId: string,
+    _phaseKey: PhaseKey,
+    results: ResultInput[]
+  ): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+    const client = supabaseWithSession(creatorSessionId)
+
+    // Batch updates — Promise.all since supabase-js UPDATE must target one row at a time
+    await Promise.all(results.map(r =>
+      client.from('matches')
+        .update({
+          home_goals:      r.homeGoals,
+          away_goals:      r.awayGoals,
+          result_entered:  true,
+        })
+        .eq('id', r.matchId)
+    ))
+
+    await fetchGame(gameId)
+  }
+
+  // ─── deleteGame ─────────────────────────────────────────────────────────────
+
+  async function deleteGame(gameId: string): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId) ?? ''
+    const client = supabaseWithSession(creatorSessionId)
+    await client.from('games').delete().eq('id', gameId)
+    // Cascades delete tournament_phases → matches, game_players → predictions/scorer_selections
+
+    // Clean localStorage
+    if (typeof window !== 'undefined') {
+      for (const key of ['session', 'creator', 'player_token', 'admin_token']) {
+        localStorage.removeItem(`porra_mundial_${key}_${gameId}`)
+      }
+    }
+    setGames(prev => {
+      const { [gameId]: _, ...rest } = prev
+      return rest
+    })
+  }
+
+  // ─── exportGame — still sync, encodes in-memory cache ───────────────────────
 
   function exportGame(gameId: string): string {
     const game = games[gameId]
@@ -630,9 +866,11 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     return btoa(encodeURIComponent(JSON.stringify(data)))
   }
 
-  function importGame(
+  // ─── importGame — creates a new game in Supabase (different ID) ──────────────
+
+  async function importGame(
     encoded: string
-  ): { game: LocalGame; sessionId: string | null } | { error: string } {
+  ): Promise<{ game: LocalGame; sessionId: string | null } | { error: string }> {
     try {
       const data = JSON.parse(decodeURIComponent(atob(encoded))) as {
         v: number
@@ -641,64 +879,189 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         at: string
       }
       if (!data.game?.id) return { error: 'Invalid game data' }
-      const updatedGames = { ...games, [data.game.id]: data.game }
-      persist(updatedGames)
-      if (data.sessionId && typeof window !== 'undefined') {
-        localStorage.setItem(`porra_mundial_session_${data.game.id}`, data.sessionId)
-        // Restore creator key if the imported session is the creator session
-        if (data.sessionId === data.game.creatorSessionId) {
-          localStorage.setItem(`porra_mundial_creator_${data.game.id}`, data.sessionId)
+
+      const sourceGame = data.game
+
+      // Create a new game in Supabase with the same name (new ID)
+      const gameId             = generateUUID()
+      const creatorSessionId   = sourceGame.creatorSessionId
+      const adminToken         = sourceGame.adminToken
+      const now                = new Date().toISOString()
+
+      // INSERT game
+      const { error: insertErr } = await supabase.from('games').insert({
+        id:                 gameId,
+        creator_session_id: creatorSessionId,
+        admin_token:        adminToken,
+        name:               sourceGame.name,
+        invite_code:        generateInviteCode(),
+        status:             sourceGame.status,
+        tournament_phase:   'LEAGUE',
+        created_at:         now,
+        updated_at:         now,
+      })
+      if (insertErr) return { error: 'Failed to import game. Please try again.' }
+
+      // INSERT phases
+      const phaseRows = sourceGame.phases.map(ph => ({
+        id:         generateUUID(),
+        game_id:    gameId,
+        phase_key:  ph.phaseKey,
+        is_open:    ph.isOpen,
+        is_locked:  ph.isLocked,
+        opened_at:  ph.openedAt ?? null,
+        locked_at:  ph.lockedAt ?? null,
+        created_at: now,
+      }))
+      const { data: insertedPhases } = await supabase
+        .from('tournament_phases').insert(phaseRows).select()
+
+      const phaseIdMap = new Map<string, string>(
+        ((insertedPhases ?? []) as DbTournamentPhase[]).map(p => [p.phase_key, p.id])
+      )
+
+      // INSERT matches
+      if (sourceGame.matches.length > 0) {
+        const matchRows = sourceGame.matches.map(m => ({
+          id:                   `${gameId}-match-${m.phaseKey}-${m.matchNumber}`,
+          tournament_phase_id:  phaseIdMap.get(m.phaseKey)!,
+          phase_key:            m.phaseKey,
+          match_number:         m.matchNumber,
+          home_team:            m.homeTeam,
+          away_team:            m.awayTeam,
+          scheduled_at:         m.scheduledAt,
+          result_entered:       m.resultEntered,
+          home_goals:           m.homeGoals ?? null,
+          away_goals:           m.awayGoals ?? null,
+          teams_confirmed:      m.teamsConfirmed,
+          created_at:           now,
+        }))
+        await supabase.from('matches').insert(matchRows)
+      }
+
+      // INSERT players
+      const playerIdMap = new Map<string, string>() // sessionId → game_player.id
+      for (const p of sourceGame.players) {
+        const playerId = generateUUID()
+        playerIdMap.set(p.sessionId, playerId)
+        await supabase.from('game_players').insert({
+          id:           playerId,
+          game_id:      gameId,
+          session_id:   p.sessionId,
+          player_name:  p.name,
+          player_token: p.playerToken,
+          total_score:  0,
+          joined_at:    p.joinedAt,
+        })
+      }
+
+      // INSERT predictions
+      if (sourceGame.predictions.length > 0) {
+        const matchIdRemap = (oldMatchId: string) => {
+          // Deterministic match IDs embed the old gameId — remap to new gameId
+          const match = sourceGame.matches.find(m => m.id === oldMatchId)
+          if (!match) return null
+          return `${gameId}-match-${match.phaseKey}-${match.matchNumber}`
+        }
+        const predRows = sourceGame.predictions
+          .map(pr => {
+            const newMatchId   = matchIdRemap(pr.matchId)
+            const newPlayerId  = playerIdMap.get(pr.sessionId)
+            if (!newMatchId || !newPlayerId) return null
+            return {
+              id:                    generateUUID(),
+              match_id:              newMatchId,
+              game_player_id:        newPlayerId,
+              home_goals_predicted:  pr.homeGoalsPredicted,
+              away_goals_predicted:  pr.awayGoalsPredicted,
+              created_at:            pr.createdAt,
+              updated_at:            pr.updatedAt,
+            }
+          })
+          .filter((r): r is NonNullable<typeof r> => r !== null)
+        if (predRows.length > 0) {
+          await supabase.from('predictions').insert(predRows)
         }
       }
-      return { game: data.game, sessionId: data.sessionId ?? null }
+
+      // Persist localStorage keys
+      if (data.sessionId && typeof window !== 'undefined') {
+        localStorage.setItem(`porra_mundial_session_${gameId}`, data.sessionId)
+        if (data.sessionId === creatorSessionId) {
+          localStorage.setItem(`porra_mundial_creator_${gameId}`, data.sessionId)
+          localStorage.setItem(`porra_mundial_admin_token_${gameId}`, adminToken)
+        }
+      }
+
+      const game = await fetchGame(gameId)
+      if (!game) return { error: 'Game imported but could not be loaded.' }
+      return { game, sessionId: data.sessionId ?? null }
     } catch {
       return { error: 'Invalid export code. Please check and try again.' }
     }
   }
 
-  function updateMatchTeams(
+  // ─── updateMatchTeams ────────────────────────────────────────────────────────
+
+  async function updateMatchTeams(
     gameId: string,
     matchId: string,
     homeTeam: string,
     awayTeam: string
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-    const now = new Date().toISOString()
-    const updatedMatches = game.matches.map((m) =>
-      m.id === matchId
-        ? { ...m, homeTeam: homeTeam.trim(), awayTeam: awayTeam.trim(), teamsConfirmed: true }
-        : m
-    )
-    persist({ ...games, [gameId]: { ...game, matches: updatedMatches, updatedAt: now } })
+  ): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+    const client = supabaseWithSession(creatorSessionId)
+    await client.from('matches')
+      .update({
+        home_team:       homeTeam.trim(),
+        away_team:       awayTeam.trim(),
+        teams_confirmed: true,
+      })
+      .eq('id', matchId)
+    await fetchGame(gameId)
   }
 
-  function savePhaseMatches(
+  // ─── savePhaseMatches ────────────────────────────────────────────────────────
+
+  async function savePhaseMatches(
     gameId: string,
-    updates: Array<{ matchId: string; homeTeam: string; awayTeam: string }>
-  ): void {
-    const game = games[gameId]
-    if (!game) return
-    const now = new Date().toISOString()
-    const updateMap = new Map(updates.map((u) => [u.matchId, u]))
-    const updatedMatches = game.matches.map((m) => {
-      const u = updateMap.get(m.id)
-      if (!u) return m
-      return { ...m, homeTeam: u.homeTeam.trim(), awayTeam: u.awayTeam.trim(), teamsConfirmed: true }
-    })
-    persist({ ...games, [gameId]: { ...game, matches: updatedMatches, updatedAt: now } })
+    updates: MatchTeamUpdate[]
+  ): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId) return
+    const client = supabaseWithSession(creatorSessionId)
+
+    await Promise.all(updates.map(u =>
+      client.from('matches')
+        .update({
+          home_team:       u.homeTeam.trim(),
+          away_team:       u.awayTeam.trim(),
+          teams_confirmed: true,
+        })
+        .eq('id', u.matchId)
+    ))
+
+    await fetchGame(gameId)
   }
 
   return (
     <GameStoreContext.Provider
       value={{
+        isLoading,
+        error,
+        hasLegacyData,
+        dismissLegacyBanner,
         games,
         storageAvailable,
-        createGame,
-        joinGame,
         getGame,
         getMySession,
         getIsCreator,
+        fetchGame,
+        createGame,
+        joinGame,
+        redeemPlayerToken,
+        redeemAdminToken,
         savePrediction,
         savePredictions,
         overridePrediction,
@@ -735,25 +1098,4 @@ export function useGameStore(): GameStoreContextValue {
     throw new Error('useGameStore must be used within a GameStoreProvider')
   }
   return ctx
-}
-
-/**
- * Persists the current player's sessionId for a given game.
- * Call this after createGame or joinGame to associate the browser with the session.
- */
-export function persistSessionId(gameId: string, sessionId: string): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(`porra_mundial_session_${gameId}`, sessionId)
-  }
-}
-
-/**
- * Persists the creator's sessionId in a dedicated key that is never overwritten
- * by the join flow. This allows the creator to join their own game as a named
- * player without losing admin access.
- */
-export function persistCreatorSessionId(gameId: string, sessionId: string): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(`porra_mundial_creator_${gameId}`, sessionId)
-  }
 }

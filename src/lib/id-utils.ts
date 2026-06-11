@@ -34,3 +34,19 @@ export function generateInviteCode(): string {
   }
   return code
 }
+
+/**
+ * Builds a recovery link URL for a game admin.
+ * The token is the game's adminToken — redeeming it restores creator access.
+ */
+export function buildAdminRecoveryLink(origin: string, gameId: string, adminToken: string): string {
+  return `${origin}/games/${gameId}/admin?token=${adminToken}`
+}
+
+/**
+ * Builds a recovery link URL for a player.
+ * The token is the player's playerToken — redeeming it restores their session.
+ */
+export function buildPlayerRecoveryLink(origin: string, gameId: string, playerToken: string): string {
+  return `${origin}/games/${gameId}/join?token=${playerToken}`
+}

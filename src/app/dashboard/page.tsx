@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const allGames: LocalGame[] = Object.values(games).sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -30,9 +31,14 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleDelete = (gameId: string) => {
-    deleteGame(gameId);
-    setDeleteConfirmId(null);
+  const handleDelete = async (gameId: string) => {
+    setIsDeleting(true);
+    try {
+      await deleteGame(gameId);
+    } finally {
+      setDeleteConfirmId(null);
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -172,17 +178,22 @@ export default function DashboardPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-900 hover:bg-gray-50"
+                disabled={isDeleting}
+                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
                 data-testid="dashboard-delete-cancel"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(deleteConfirmId)}
-                className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-medium text-white hover:bg-red-600"
+                disabled={isDeleting}
+                className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-medium text-white hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
                 data-testid="dashboard-delete-confirm"
               >
-                Delete
+                {isDeleting && (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

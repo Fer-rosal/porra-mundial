@@ -91,6 +91,7 @@ function makeGame(predictions: LocalPrediction[] = []): LocalGame {
     name: 'Test Game',
     inviteCode: 'ABC1234',
     creatorSessionId: 'creator',
+    adminToken: 'admin-token-fixture',
     status: 'IN_PROGRESS',
     createdAt: '2026-06-10T00:00:00.000Z',
     updatedAt: '2026-06-10T00:00:00.000Z',

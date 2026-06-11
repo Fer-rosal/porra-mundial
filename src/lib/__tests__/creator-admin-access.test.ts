@@ -106,6 +106,7 @@ function makeGame(overrides: Partial<LocalGame> = {}): LocalGame {
     name: 'Test Game',
     inviteCode: 'ABC1234',
     creatorSessionId: 'creator-session',
+    adminToken: 'admin-token-fixture',
     status: 'OPEN',
     createdAt: '2026-06-10T00:00:00.000Z',
     updatedAt: '2026-06-10T00:00:00.000Z',

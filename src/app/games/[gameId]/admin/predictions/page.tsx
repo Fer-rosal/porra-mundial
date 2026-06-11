@@ -16,6 +16,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
   const [pendingScores, setPendingScores] = useState<Map<string, [number, number]>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const game = getGame(gameId);
   const isCreator = getIsCreator(gameId);
@@ -59,7 +60,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
     });
   };
 
-  const handleSaveOverride = () => {
+  const handleSaveOverride = async () => {
     setError(null);
 
     if (!effectiveSessionId) {
@@ -67,6 +68,7 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
       return;
     }
 
+    setIsSaving(true);
     try {
       // Admin saves the full set of displayed matches in a single batch call
       const payloads = matchesForPhase.map((match) => {
@@ -75,13 +77,15 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
         const [home, away] = pending ?? existing ?? [0, 0];
         return { matchId: match.id, homeGoalsPredicted: home, awayGoalsPredicted: away };
       });
-      overridePredictions(gameId, effectiveSessionId, payloads);
+      await overridePredictions(gameId, effectiveSessionId, payloads);
 
       setPendingScores(new Map());
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save predictions');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -200,10 +204,14 @@ export default function AdminPredictionsPage({ params }: { params: Promise<{ gam
 
           <button
             onClick={handleSaveOverride}
-            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600"
+            disabled={isSaving}
+            className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
             data-testid="admin-predictions-save-btn"
           >
-            Save Override
+            {isSaving && (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            )}
+            {isSaving ? 'Saving...' : 'Save Override'}
           </button>
         </>
       ) : (

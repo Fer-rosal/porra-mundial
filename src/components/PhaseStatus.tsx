@@ -1,9 +1,9 @@
 'use client';
 
-import { TournamentPhaseData } from '@/lib/types';
+import { DbTournamentPhase } from '@/lib/types';
 
 interface PhaseStatusProps {
-  phase: TournamentPhaseData;
+  phase: DbTournamentPhase;
 }
 
 export default function PhaseStatus({ phase }: PhaseStatusProps) {

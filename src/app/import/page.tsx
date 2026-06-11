@@ -11,8 +11,9 @@ export default function ImportPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [importedGameId, setImportedGameId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const trimmed = code.trim();
@@ -20,12 +21,17 @@ export default function ImportPage() {
       setError('Paste your export code first.');
       return;
     }
-    const result = importGame(trimmed);
-    if ('error' in result) {
-      setError(result.error);
-      return;
+    setIsImporting(true);
+    try {
+      const result = await importGame(trimmed);
+      if ('error' in result) {
+        setError(result.error);
+        return;
+      }
+      setImportedGameId(result.game.id);
+    } finally {
+      setIsImporting(false);
     }
-    setImportedGameId(result.game.id);
   };
 
   if (importedGameId) {
@@ -87,10 +93,14 @@ export default function ImportPage() {
           <div className="flex gap-4">
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+              disabled={isImporting}
+              className="flex-1 rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
               data-testid="import-submit-btn"
             >
-              Import Game
+              {isImporting && (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              )}
+              {isImporting ? 'Importing...' : 'Import Game'}
             </button>
             <button
               type="button"

@@ -4,7 +4,7 @@ import type { LocalGame, LocalPlayer, LocalMatch, LocalPrediction, LocalScorerSe
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
 function makePlayer(sessionId: string, name: string): LocalPlayer {
-  return { sessionId, name, joinedAt: '2026-06-10T00:00:00.000Z' }
+  return { sessionId, name, joinedAt: '2026-06-10T00:00:00.000Z', playerToken: `token-${sessionId}` }
 }
 
 function makeMatch(
@@ -23,6 +23,7 @@ function makeMatch(
     homeGoals,
     awayGoals,
     resultEntered: homeGoals !== null && awayGoals !== null,
+    teamsConfirmed: true,
   }
 }
 
@@ -68,6 +69,7 @@ function makeBaseGame(overrides: Partial<LocalGame> = {}): LocalGame {
     name: 'Test Game',
     inviteCode: 'ABC1234',
     creatorSessionId: 'session-creator',
+    adminToken: 'admin-token-fixture',
     status: 'IN_PROGRESS',
     createdAt: '2026-06-10T00:00:00.000Z',
     updatedAt: '2026-06-10T00:00:00.000Z',
