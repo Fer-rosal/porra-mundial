@@ -42,17 +42,17 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white" data-testid="dashboard-page">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen" data-testid="dashboard-page">
+      <div className="page-shell sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="page-hero mb-8 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">My Games</h1>
             <p className="mt-1 text-gray-600">Manage your World Cup 2026 betting tournaments</p>
           </div>
           <Link
             href="/dashboard/create-game"
-            className="rounded-lg bg-orange-500 px-6 py-2 font-semibold text-white hover:bg-orange-600"
+            className="btn-primary rounded-lg px-6 py-2"
             data-testid="dashboard-create-btn"
           >
             Create New Game
@@ -67,8 +67,8 @@ export default function DashboardPage() {
               onClick={() => setFilter(f)}
               className={`rounded-lg px-4 py-2 font-medium transition-colors ${
                 filter === f
-                  ? 'bg-orange-500 text-white'
-                  : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
               }`}
               data-testid={`dashboard-filter-${f}`}
             >
@@ -79,7 +79,7 @@ export default function DashboardPage() {
 
         {/* Games list */}
         {filteredGames.length === 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center" data-testid="dashboard-empty">
+          <div className="glass-card rounded-lg p-12 text-center" data-testid="dashboard-empty">
             <p className="text-gray-600">
               {allGames.length === 0
                 ? 'No games yet. Create or join a game to get started!'
@@ -89,14 +89,14 @@ export default function DashboardPage() {
               <div className="mt-4 flex justify-center gap-4">
                 <Link
                   href="/dashboard/create-game"
-                  className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+                  className="btn-primary rounded-lg px-4 py-2 text-sm"
                   data-testid="dashboard-empty-create-btn"
                 >
                   Create Game
                 </Link>
                 <Link
                   href="/join"
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  className="btn-secondary rounded-lg px-4 py-2 text-sm"
                   data-testid="dashboard-empty-join-btn"
                 >
                   Join Game
@@ -109,7 +109,7 @@ export default function DashboardPage() {
             {filteredGames.map((game) => (
               <div
                 key={game.id}
-                className="rounded-lg border border-gray-200 p-6 shadow-sm"
+                className="glass-card rounded-lg p-6"
                 data-testid={`dashboard-game-${game.id}`}
               >
                 <div className="mb-2 flex items-start justify-between">
@@ -119,7 +119,7 @@ export default function DashboardPage() {
                       ? 'bg-green-100 text-green-800'
                       : game.status === 'IN_PROGRESS'
                       ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
+                      : 'bg-orange-100 text-orange-800'
                   }`}>
                     {game.status}
                   </span>
@@ -136,14 +136,14 @@ export default function DashboardPage() {
                 <div className="flex gap-2">
                   <Link
                     href={`/games/${game.id}`}
-                    className="flex-1 rounded-lg bg-orange-500 px-3 py-2 text-center text-sm font-semibold text-white hover:bg-orange-600"
+                    className="btn-primary flex-1 rounded-lg px-3 py-2 text-center text-sm"
                     data-testid={`dashboard-view-game-${game.id}`}
                   >
                     View Game
                   </Link>
                   <button
                     onClick={() => copyInviteLink(game)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    className="btn-secondary rounded-lg px-3 py-2 text-sm"
                     data-testid={`dashboard-share-${game.id}`}
                     title="Copy invite link"
                   >
@@ -151,7 +151,7 @@ export default function DashboardPage() {
                   </button>
                   <button
                     onClick={() => setDeleteConfirmId(game.id)}
-                    className="rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="btn-danger rounded-lg px-3 py-2 text-sm"
                     data-testid={`dashboard-delete-${game.id}`}
                     title="Delete game"
                   >
@@ -170,16 +170,16 @@ export default function DashboardPage() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
           data-testid="dashboard-delete-modal"
         >
-          <div className="max-w-sm rounded-lg bg-white p-6 shadow-lg">
+          <div className="glass-card max-w-sm p-6">
             <h4 className="mb-2 text-lg font-semibold text-gray-900">Delete Game?</h4>
             <p className="mb-6 text-gray-600">
-              This will permanently remove this game from your browser. This cannot be undone.
+              This will permanently remove this game from Supabase. This cannot be undone.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmId(null)}
                 disabled={isDeleting}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-50"
+                className="btn-secondary flex-1 rounded-lg px-4 py-2 disabled:opacity-50"
                 data-testid="dashboard-delete-cancel"
               >
                 Cancel
@@ -187,7 +187,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => handleDelete(deleteConfirmId)}
                 disabled={isDeleting}
-                className="flex-1 rounded-lg bg-red-500 px-4 py-2 font-medium text-white hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="btn-danger flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 disabled:opacity-50"
                 data-testid="dashboard-delete-confirm"
               >
                 {isDeleting && (

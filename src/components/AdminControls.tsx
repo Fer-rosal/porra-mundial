@@ -49,11 +49,11 @@ export default function AdminControls({
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 p-6 bg-gray-50" data-testid="admin-controls">
+    <div className="glass-card rounded-xl p-6" data-testid="admin-controls">
       <h3 className="mb-4 text-lg font-semibold text-gray-900">Phase Controls</h3>
 
       <div className="mb-4 flex items-center gap-4">
-        <span className="inline-block rounded-full px-3 py-1 text-sm font-medium bg-blue-100 text-blue-800">
+        <span className="status-pill bg-orange-100 text-orange-800">
           {isOpen && !isLocked ? 'OPEN' : isLocked ? 'LOCKED' : 'CLOSED'}
         </span>
       </div>
@@ -88,7 +88,7 @@ export default function AdminControls({
         {!isOpen && !isLocked && !hasTbdMatches && (
           <button
             onClick={() => setConfirmAction('open')}
-            className="w-full flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 font-semibold text-white hover:bg-green-600 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-green-500 px-4 py-2.5 font-semibold text-white transition-all hover:bg-green-600 disabled:opacity-50"
             disabled={loading}
             data-testid="admin-open-phase-btn"
           >
@@ -100,7 +100,7 @@ export default function AdminControls({
         {isOpen && !isLocked && (
           <button
             onClick={() => setConfirmAction('lock')}
-            className="w-full flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-red-500 px-4 py-2.5 font-semibold text-white transition-all hover:bg-red-600 disabled:opacity-50"
             disabled={loading}
             data-testid="admin-lock-phase-btn"
           >
@@ -119,7 +119,7 @@ export default function AdminControls({
       {/* Confirmation modal */}
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" data-testid="admin-confirm-modal">
-          <div className="max-w-sm rounded-lg bg-white p-6">
+          <div className="glass-card max-w-sm p-6">
             <h4 className="mb-2 text-lg font-semibold text-gray-900">
               {confirmAction === 'open' ? 'Open Phase?' : 'Lock Phase?'}
             </h4>
@@ -131,7 +131,7 @@ export default function AdminControls({
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmAction(null)}
-                className="flex-1 rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-900 hover:bg-gray-50"
+                className="btn-secondary flex-1 rounded-lg px-4 py-2"
                 data-testid="admin-confirm-cancel"
               >
                 Cancel
@@ -139,7 +139,7 @@ export default function AdminControls({
               <button
                 onClick={confirmAction === 'open' ? handleOpenPhase : handleLockPhase}
                 disabled={loading}
-                className="flex-1 rounded-lg bg-orange-500 px-4 py-2 font-medium text-white hover:bg-orange-600 disabled:opacity-50"
+                className="btn-primary flex-1 rounded-lg px-4 py-2 disabled:opacity-50"
                 data-testid="admin-confirm-action"
               >
                 {loading ? 'Loading...' : confirmAction === 'open' ? 'Open' : 'Lock'}

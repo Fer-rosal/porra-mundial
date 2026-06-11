@@ -46,7 +46,7 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
     <>
       {/* ── Mobile: fixed bottom tab bar ─────────────────────────────── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white sm:hidden"
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-orange-100 bg-white/95 shadow-[0_-10px_24px_rgba(194,65,12,0.1)] backdrop-blur sm:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         data-testid="game-nav-mobile"
       >
@@ -59,7 +59,7 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
                 key={tab.key}
                 href={tab.href(gameId)}
                 className={`flex flex-col items-center justify-center py-2 transition-colors duration-150 ${
-                  active ? 'text-orange-600' : 'text-gray-400 hover:text-gray-600'
+                  active ? 'text-orange-700' : 'text-gray-400 hover:text-orange-600'
                 }`}
                 data-testid={`game-nav-mobile-${tab.key}`}
                 aria-current={active ? 'page' : undefined}
@@ -85,7 +85,7 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
 
       {/* ── Desktop: horizontal pill tab strip ───────────────────────── */}
       <nav
-        className="hidden border-b border-gray-200 sm:block"
+        className="hidden border-b border-orange-100 sm:block"
         data-testid="game-nav-desktop"
       >
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -99,8 +99,8 @@ export default function GameNavBar({ gameId, isAdmin }: GameNavBarProps) {
                   href={tab.href(gameId)}
                   className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 ${
                     active
-                      ? 'bg-orange-100 text-orange-700'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      ? 'bg-orange-100 text-orange-700 shadow-sm'
+                      : 'text-gray-600 hover:bg-orange-50 hover:text-orange-700'
                   }`}
                   data-testid={`game-nav-desktop-${tab.key}`}
                   aria-current={active ? 'page' : undefined}

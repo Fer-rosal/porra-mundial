@@ -61,9 +61,9 @@ export default function GameLayout({
   if (!game) return null
 
   return (
-    <div className="min-h-screen bg-white" data-testid="game-layout">
+    <div className="min-h-screen" data-testid="game-layout">
       {/* Game header */}
-      <div className="border-b border-gray-200 bg-gray-50 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="border-b border-orange-100 bg-gradient-to-r from-orange-50/70 to-white px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>

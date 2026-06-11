@@ -31,13 +31,13 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
 
       {entries.length === 0 ? (
         <div
-          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="glass-card rounded-xl p-8 text-center text-gray-600"
           data-testid="leaderboard-empty"
         >
           No players yet
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto rounded-xl">
           <LeaderboardTable entries={entries} currentSessionId={mySession?.sessionId} />
         </div>
       )}

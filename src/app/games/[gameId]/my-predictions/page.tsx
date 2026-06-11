@@ -41,7 +41,7 @@ export default function MyPredictionsPage({ params }: { params: Promise<{ gameId
 
       {myPredictions.length === 0 ? (
         <div
-          className="rounded-xl border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="glass-card rounded-xl p-8 text-center text-gray-600"
           data-testid="my-predictions-empty"
         >
           No predictions yet. Go to the Predictions tab to submit your scores.
@@ -56,7 +56,7 @@ export default function MyPredictionsPage({ params }: { params: Promise<{ gameId
               return (
                 <div
                   key={pred.id}
-                  className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                  className="glass-card rounded-xl p-4"
                   data-testid={`my-prediction-${pred.id}`}
                 >
                   <div className="flex items-center justify-between gap-3">

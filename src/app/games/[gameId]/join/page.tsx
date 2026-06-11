@@ -95,7 +95,7 @@ export default function PlayerTokenRedemptionPage({
           {errorType === 'invalid' && (
             <Link
               href="/join"
-              className="w-full rounded-xl bg-orange-500 px-6 py-3 text-center font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+              className="btn-primary w-full rounded-xl px-6 py-3 text-center"
               data-testid="join-token-join-link"
             >
               Join with an invite code
@@ -104,7 +104,7 @@ export default function PlayerTokenRedemptionPage({
           {errorType === 'no-game' && (
             <Link
               href="/import"
-              className="w-full rounded-xl bg-orange-500 px-6 py-3 text-center font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+              className="btn-primary w-full rounded-xl px-6 py-3 text-center"
               data-testid="join-token-import-link"
             >
               Import game data
@@ -112,7 +112,7 @@ export default function PlayerTokenRedemptionPage({
           )}
           <Link
             href="/dashboard"
-            className="w-full rounded-xl border border-gray-300 px-6 py-3 text-center font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all"
+            className="btn-secondary w-full rounded-xl px-6 py-3 text-center"
             data-testid="join-token-dashboard-link"
           >
             Back to Dashboard

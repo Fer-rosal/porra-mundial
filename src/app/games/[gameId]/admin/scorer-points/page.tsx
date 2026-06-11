@@ -82,7 +82,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               selectedPhase === phase
                 ? 'bg-orange-500 text-white'
-                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
             }`}
             data-testid={`scorer-points-phase-${phase}`}
           >
@@ -105,7 +105,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
 
       {selectionsForPhase.length === 0 ? (
         <div
-          className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center text-gray-600"
+          className="glass-card rounded-lg p-8 text-center text-gray-600"
           data-testid="scorer-points-empty"
         >
           No scorer selections for {selectedPhase} yet.
@@ -115,7 +115,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
           {selectionsForPhase.map((sel) => (
             <div
               key={sel.id}
-              className="flex items-center justify-between rounded-lg border border-gray-200 p-4"
+              className="glass-card flex items-center justify-between rounded-lg p-4"
               data-testid={`scorer-selection-${sel.id}`}
             >
               <div>
@@ -133,7 +133,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
                   <button
                     onClick={() => handleLockScorer(sel.id)}
                     disabled={lockingId === sel.id}
-                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
+                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white transition-all hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
                     data-testid={`scorer-award-${sel.id}`}
                   >
                     {lockingId === sel.id && (

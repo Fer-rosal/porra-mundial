@@ -3,10 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --color-white: #ffffff;
-  --color-orange-500: #f97316;
-  --color-orange-600: #ea580c;
-  --color-orange-700: #c2410c;
+  --bg-paper: #fffaf5;
+  --surface: #ffffff;
+  --surface-soft: #fff4ea;
+  --ink: #1f2937;
+  --ink-soft: #5f6b7a;
+  --orange-500: #f97316;
+  --orange-600: #ea580c;
+  --orange-700: #c2410c;
+  --orange-100: #ffedd5;
+  --ring: rgba(249, 115, 22, 0.28);
+  --shadow-soft: 0 14px 40px rgba(195, 65, 12, 0.08);
+  --shadow-strong: 0 20px 44px rgba(195, 65, 12, 0.14);
 }
 
 html {
@@ -14,11 +22,13 @@ html {
 }
 
 body {
-  background-color: var(--color-white);
-  color: #1f2937;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 0% -10%, rgba(249, 115, 22, 0.2) 0%, rgba(249, 115, 22, 0) 44%),
+    radial-gradient(circle at 100% 0%, rgba(234, 88, 12, 0.14) 0%, rgba(234, 88, 12, 0) 38%),
+    linear-gradient(180deg, #fff8f1 0%, var(--bg-paper) 48%, #ffffff 100%);
+  font-family: var(--font-ui), 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -26,4 +36,147 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.app-main-bg {
+  min-height: 100vh;
+  position: relative;
+}
+
+.app-main-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(120deg, rgba(249, 115, 22, 0.05) 0%, transparent 34%),
+    linear-gradient(0deg, rgba(194, 65, 12, 0.03) 0%, transparent 36%);
+  pointer-events: none;
+}
+
+.page-shell {
+  position: relative;
+  margin: 0 auto;
+  max-width: 80rem;
+  padding: 2.5rem 1rem 5rem;
+}
+
+.page-hero {
+  margin-bottom: 1.5rem;
+  animation: rise-in 420ms ease-out;
+}
+
+.page-hero h1 {
+  letter-spacing: -0.02em;
+}
+
+.glass-card {
+  border: 1px solid rgba(249, 115, 22, 0.18);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, #fff 100%);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(4px);
+}
+
+.glass-card:hover {
+  box-shadow: var(--shadow-strong);
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.input-field,
+.invite-code {
+  transition: all 180ms ease;
+}
+
+.btn-primary {
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, var(--orange-500), var(--orange-600));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(234, 88, 12, 0.28);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(234, 88, 12, 0.34);
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-danger:focus-visible,
+.input-field:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.btn-secondary {
+  border: 1px solid rgba(249, 115, 22, 0.22);
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--orange-700);
+  font-weight: 700;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-soft);
+}
+
+.btn-danger {
+  border: 1px solid #fecaca;
+  border-radius: 0.85rem;
+  background: #fff5f5;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.btn-danger:hover {
+  background: #fee2e2;
+}
+
+.input-field {
+  width: 100%;
+  border: 1px solid #fed7aa;
+  border-radius: 0.85rem;
+  background: #fff;
+  color: var(--ink);
+}
+
+.input-field:focus {
+  border-color: var(--orange-500);
+}
+
+.invite-code {
+  border-radius: 0.95rem;
+  background: linear-gradient(180deg, #fff7ed 0%, #fff 100%);
+  border: 1px dashed rgba(249, 115, 22, 0.35);
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.fade-in {
+  animation: rise-in 360ms ease-out;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 1.25rem 1rem 6rem;
+  }
 }

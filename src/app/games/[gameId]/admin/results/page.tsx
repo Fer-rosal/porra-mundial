@@ -75,7 +75,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               selectedPhase === phase
                 ? 'bg-orange-500 text-white'
-                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
             }`}
             data-testid={`results-phase-${phase}`}
           >
@@ -124,7 +124,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
       <button
         onClick={handleSubmit}
         disabled={Object.keys(results).length === 0 || isSaving}
-        className="w-full rounded-lg bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2"
+        className="btn-primary flex w-full items-center justify-center gap-2 rounded-lg px-6 py-3 disabled:opacity-50"
         data-testid="results-submit-btn"
       >
         {isSaving && (

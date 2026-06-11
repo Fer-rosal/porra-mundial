@@ -96,7 +96,7 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
 
       {existingSelection ? (
         <div
-          className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+          className="glass-card rounded-xl p-5"
           data-testid="scorer-locked"
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -129,7 +129,7 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="e.g., Mbappé, Haaland"
               disabled={!openPhase}
-              className="mt-1 w-full rounded-xl border border-gray-300 px-4 py-2 text-gray-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="input-field mt-1 px-4 py-2 text-gray-900 disabled:cursor-not-allowed disabled:opacity-50"
               data-testid="scorer-name-input"
             />
           </div>
@@ -137,7 +137,7 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
           <button
             type="submit"
             disabled={!openPhase || isSaving}
-            className="w-full rounded-xl bg-orange-500 px-6 py-3 font-semibold text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-orange-300 focus:ring-offset-1 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl px-6 py-3 disabled:cursor-not-allowed disabled:opacity-50"
             data-testid="scorer-submit-btn"
           >
             {isSaving && (
