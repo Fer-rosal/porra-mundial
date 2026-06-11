@@ -56,6 +56,7 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
   const activeMatches = activePhaseKey
     ? game.matches.filter((m) => m.phaseKey === activePhaseKey)
     : [];
+  const blockedCount = activeMatches.filter((m) => m.predictionsLocked).length;
 
   // Derived from store on every render — not state
   const existingPredictions = new Map(
@@ -154,6 +155,12 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
         </div>
       )}
 
+      {blockedCount > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-orange-800" data-testid="predictions-blocked-info">
+          {blockedCount} match{blockedCount !== 1 ? 'es are' : ' is'} blocked by admin. Predictions for those matches are read-only.
+        </div>
+      )}
+
       {saved && (
         <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-green-700" data-testid="predictions-saved">
           Predictions saved!
@@ -176,8 +183,9 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
                       match.awayGoals as number
                     )
                   : null;
+              const isBlocked = match.predictionsLocked;
 
-              if (isSaved || isReadOnlyBoard) {
+              if (isSaved || isReadOnlyBoard || isBlocked) {
                 // Read-only mode for saved matches or when phase/game is locked
                 const savedHome = prediction?.[0];
                 const savedAway = prediction?.[1];

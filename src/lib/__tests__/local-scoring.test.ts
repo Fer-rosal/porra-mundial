@@ -50,13 +50,15 @@ function makeScorerSelection(
   sessionId: string,
   phaseKey: LocalScorerSelection['phaseKey'],
   playerName: string,
-  isLocked: boolean
+  isLocked: boolean,
+  goalsScored = 0
 ): LocalScorerSelection {
   return {
     id,
     phaseKey,
     sessionId,
     playerName,
+    goalsScored,
     isLocked,
     createdAt: '2026-06-10T00:00:00.000Z',
     updatedAt: '2026-06-10T00:00:00.000Z',
@@ -231,9 +233,9 @@ describe('calculateLeaderboard', () => {
     expect(result[0].totalScore).toBe(3)
   })
 
-  it('should award 1 scorer point for a locked scorer selection', () => {
+  it('should award scorer points equal to goals scored when selection is locked', () => {
     const player = makePlayer('s1', 'Alice')
-    const scorerSelection = makeScorerSelection('ss1', 's1', 'LEAGUE', 'Mbappé', true) // locked
+    const scorerSelection = makeScorerSelection('ss1', 's1', 'LEAGUE', 'Mbappé', true, 3) // locked, 3 goals
 
     const game = makeBaseGame({
       players: [player],
@@ -243,8 +245,8 @@ describe('calculateLeaderboard', () => {
     })
 
     const result = calculateLeaderboard(game)
-    expect(result[0].phaseScores.LEAGUE).toBe(1) // scorer point (1pt * 1x multiplier)
-    expect(result[0].totalScore).toBe(1)
+    expect(result[0].phaseScores.LEAGUE).toBe(3) // 3 goals * 1x multiplier
+    expect(result[0].totalScore).toBe(3)
   })
 
   it('should NOT award scorer point for an unlocked scorer selection', () => {
@@ -262,9 +264,9 @@ describe('calculateLeaderboard', () => {
     expect(result[0].totalScore).toBe(0)
   })
 
-  it('should award scorer point * 3x multiplier in FINAL phase', () => {
+  it('should award scorer points * 3x multiplier in FINAL phase', () => {
     const player = makePlayer('s1', 'Alice')
-    const scorerSelection = makeScorerSelection('ss1', 's1', 'FINAL', 'Mbappé', true) // locked in FINAL
+    const scorerSelection = makeScorerSelection('ss1', 's1', 'FINAL', 'Mbappé', true, 2) // locked in FINAL, 2 goals
 
     const game = makeBaseGame({
       players: [player],
@@ -274,8 +276,8 @@ describe('calculateLeaderboard', () => {
     })
 
     const result = calculateLeaderboard(game)
-    expect(result[0].phaseScores.FINAL).toBe(3) // 1 scorer pt * 3x
-    expect(result[0].totalScore).toBe(3)
+    expect(result[0].phaseScores.FINAL).toBe(6) // 2 scorer pts * 3x
+    expect(result[0].totalScore).toBe(6)
   })
 
   it('should sort players by total score descending', () => {

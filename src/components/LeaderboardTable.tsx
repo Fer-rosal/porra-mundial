@@ -5,6 +5,7 @@ import type { LeaderboardEntry as LocalLeaderboardEntry, PhaseKey } from '@/lib/
 interface LeaderboardTableProps {
   entries: LocalLeaderboardEntry[];
   currentSessionId?: string;
+  creatorSessionId?: string;
 }
 
 const PHASE_LABELS: Record<PhaseKey, string> = {
@@ -47,7 +48,7 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-export default function LeaderboardTable({ entries, currentSessionId }: LeaderboardTableProps) {
+export default function LeaderboardTable({ entries, currentSessionId, creatorSessionId }: LeaderboardTableProps) {
   return (
     <div className="glass-card overflow-x-auto rounded-xl" data-testid="leaderboard-table">
       <table className="w-full border-collapse">
@@ -66,6 +67,7 @@ export default function LeaderboardTable({ entries, currentSessionId }: Leaderbo
         <tbody>
           {entries.map((entry, idx) => {
             const isCurrentPlayer = entry.sessionId === currentSessionId;
+            const isCreator = entry.sessionId === creatorSessionId;
             return (
               <tr
                 key={entry.sessionId}
@@ -82,12 +84,19 @@ export default function LeaderboardTable({ entries, currentSessionId }: Leaderbo
                 <td className={`px-4 py-3 text-sm font-medium ${
                   isCurrentPlayer ? 'text-orange-700' : 'text-gray-900'
                 }`}>
-                  {entry.playerName}
-                  {isCurrentPlayer && (
-                    <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                      you
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="mr-1 font-medium">{entry.playerName}</span>
+                    {isCreator && (
+                      <span className="inline-flex items-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-sm">
+                        Creator
+                      </span>
+                    )}
+                    {isCurrentPlayer && (
+                      <span className="inline-flex items-center rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 shadow-sm">
+                        You
+                      </span>
+                    )}
+                  </div>
                 </td>
                 {PHASE_ORDER.map((phase) => (
                   <td key={phase} className="px-3 py-3 text-center text-sm text-gray-600">

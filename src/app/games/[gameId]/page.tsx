@@ -2,16 +2,16 @@
 
 import { use } from 'react';
 import { useGameStore, persistCreatorSessionId } from '@/lib/game-store';
-import { Copy, Check, Download } from 'lucide-react';
+import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
+import CopyRecoveryLink from '@/components/CopyRecoveryLink';
+import { buildAdminRecoveryLink, buildPlayerRecoveryLink } from '@/lib/id-utils';
 
 export default function GameOverviewPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getMySession, getIsCreator, exportGame } = useGameStore();
+  const { getGame, getMySession, getIsCreator } = useGameStore();
   const [codeCopied, setCodeCopied] = useState(false);
-  const [exportCode, setExportCode] = useState<string | null>(null);
-  const [exportCopied, setExportCopied] = useState(false);
   const [adminReclaimed, setAdminReclaimed] = useState(false);
 
   const game = getGame(gameId);
@@ -33,27 +33,23 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
-  const handleExport = () => {
-    try {
-      const code = exportGame(gameId);
-      setExportCode(code);
-    } catch {
-      // game not found — shouldn't happen here
-    }
-  };
-
-  const copyExportCode = async () => {
-    if (!exportCode) return;
-    await navigator.clipboard.writeText(exportCode);
-    setExportCopied(true);
-    setTimeout(() => setExportCopied(false), 2000);
-  };
-
   const handleReclaimAdmin = () => {
     if (!game) return;
     persistCreatorSessionId(gameId, game.creatorSessionId);
     setAdminReclaimed(true);
   };
+
+  const currentPlayer = mySession
+    ? game.players.find((p) => p.sessionId === mySession.sessionId)
+    : null;
+  const playerRecoveryLink =
+    currentPlayer?.playerToken && typeof window !== 'undefined'
+      ? buildPlayerRecoveryLink(window.location.origin, gameId, currentPlayer.playerToken)
+      : '';
+  const adminRecoveryLink =
+    isAdmin && typeof window !== 'undefined'
+      ? buildAdminRecoveryLink(window.location.origin, gameId, game.adminToken)
+      : '';
 
   // Find currently open phase
   const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
@@ -199,51 +195,28 @@ export default function GameOverviewPage({ params }: { params: Promise<{ gameId:
         </div>
       )}
 
-      {/* Export section */}
+      {/* Recovery links */}
       <div className="glass-card rounded-xl p-5">
-        <h2 className="mb-2 text-base font-semibold text-gray-900">Take Game to Another Browser</h2>
+        <h2 className="mb-2 text-base font-semibold text-gray-900">Recovery Links</h2>
         <p className="mb-4 text-sm text-gray-600">
-          Export your game data so you (or another player) can load it in a different browser.
+          Save your recovery link so you can restore your session from any device.
         </p>
-        {!exportCode ? (
-          <button
-            onClick={handleExport}
-            className="btn-secondary flex items-center gap-2 rounded-xl px-4 py-2.5"
-            data-testid="game-export-btn"
-          >
-            <Download size={16} />
-            Generate Export Code
-          </button>
-        ) : (
-          <div className="space-y-3" data-testid="game-export-section">
-            <textarea
-              readOnly
-              value={exportCode}
-              rows={4}
-              className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-700"
-              data-testid="game-export-code"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={copyExportCode}
-                className="btn-primary flex items-center gap-2 rounded-xl px-4 py-2"
-                data-testid="game-export-copy-btn"
-              >
-                {exportCopied ? <><Check size={16} />Copied!</> : <><Copy size={16} />Copy Code</>}
-              </button>
-              <button
-                onClick={() => setExportCode(null)}
-                className="btn-secondary rounded-xl px-4 py-2 text-sm"
-                data-testid="game-export-close-btn"
-              >
-                Close
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">
-              On the other browser, go to <strong>/import</strong> and paste this code.
+        <div className="space-y-3" data-testid="game-recovery-links-section">
+          {playerRecoveryLink ? (
+            <CopyRecoveryLink href={playerRecoveryLink} label="Copy your recovery link" />
+          ) : (
+            <p className="text-sm text-gray-500" data-testid="game-recovery-links-no-player-session">
+              Join this game as a player to generate your recovery link.
             </p>
-          </div>
-        )}
+          )}
+
+          {adminRecoveryLink && (
+            <div className="rounded-xl border border-orange-200 bg-orange-50 p-3" data-testid="game-admin-recovery-link-section">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-orange-700">Creator access</p>
+              <CopyRecoveryLink href={adminRecoveryLink} label="Copy admin recovery link" />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Rules section */}

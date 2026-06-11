@@ -11,6 +11,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
   const { gameId } = use(params);
   const { getGame, getIsCreator, fetchGame } = useGameStore();
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
+  const [goalsBySelection, setGoalsBySelection] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [lockingId, setLockingId] = useState<string | null>(null);
@@ -33,7 +34,16 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
   // Find player name by sessionId
   const playerById = Object.fromEntries(game.players.map((p) => [p.sessionId, p.name]));
 
-  // Lock a scorer selection to award the point via Supabase
+  const resolveGoalsScored = (selectionId: string): number => {
+    const raw = goalsBySelection[selectionId];
+    if (raw === undefined) {
+      const existing = selectionsForPhase.find((s) => s.id === selectionId);
+      return existing?.goalsScored ?? 0;
+    }
+    return Math.max(0, raw);
+  };
+
+  // Lock scorer selection and persist goals scored (1 point per goal)
   const handleLockScorer = async (selectionId: string) => {
     setError(null);
     setLockingId(selectionId);
@@ -43,13 +53,19 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
         typeof window !== 'undefined' ? localStorage.getItem(creatorKey) ?? '' : '';
       const client = supabaseWithSession(creatorSessionId);
 
+      const goalsScored = resolveGoalsScored(selectionId);
+
       const { error: updateErr } = await client
         .from('scorer_selections')
-        .update({ is_locked: true, updated_at: new Date().toISOString() })
+        .update({
+          is_locked: true,
+          goals_scored: goalsScored,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', selectionId);
 
       if (updateErr) {
-        setError('Failed to award scorer point. Please try again.');
+        setError('Failed to save scorer goals. Please try again.');
         return;
       }
 
@@ -58,10 +74,18 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
-      setError('Failed to award scorer point. Please try again.');
+      setError('Failed to save scorer goals. Please try again.');
     } finally {
       setLockingId(null);
     }
+  };
+
+  const handleGoalsChange = (selectionId: string, nextValue: string) => {
+    const parsed = Number.parseInt(nextValue, 10);
+    setGoalsBySelection((prev) => ({
+      ...prev,
+      [selectionId]: Number.isNaN(parsed) ? 0 : Math.max(0, parsed),
+    }));
   };
 
   return (
@@ -69,7 +93,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Award Scorer Points</h1>
         <p className="mt-2 text-gray-600">
-          Lock a scorer selection to award 1 point to that player for this phase.
+          Enter goals scored and lock each selection. Players receive 1 point per goal.
         </p>
       </div>
 
@@ -99,7 +123,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
 
       {saved && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-700" data-testid="scorer-points-saved">
-          Scorer point awarded!
+          Scorer goals saved!
         </div>
       )}
 
@@ -125,23 +149,33 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
                 <p className="text-sm text-gray-600">Selected: {sel.playerName}</p>
               </div>
               <div className="flex items-center gap-3">
-                {sel.isLocked ? (
-                  <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
-                    Point Awarded
+                <label className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Goals</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={goalsBySelection[sel.id] ?? sel.goalsScored}
+                    onChange={(e) => handleGoalsChange(sel.id, e.target.value)}
+                    className="w-20 rounded-lg border border-orange-200 bg-white px-2 py-1 text-sm text-gray-900"
+                    data-testid={`scorer-goals-${sel.id}`}
+                  />
+                </label>
+                {sel.isLocked && (
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800" data-testid={`scorer-awarded-${sel.id}`}>
+                    Locked: {sel.goalsScored} pts
                   </span>
-                ) : (
-                  <button
-                    onClick={() => handleLockScorer(sel.id)}
-                    disabled={lockingId === sel.id}
-                    className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white transition-all hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-                    data-testid={`scorer-award-${sel.id}`}
-                  >
-                    {lockingId === sel.id && (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    )}
-                    Award Point
-                  </button>
                 )}
+                <button
+                  onClick={() => handleLockScorer(sel.id)}
+                  disabled={lockingId === sel.id}
+                  className="rounded-lg bg-green-500 px-3 py-1 text-sm font-semibold text-white transition-all hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
+                  data-testid={`scorer-award-${sel.id}`}
+                >
+                  {lockingId === sel.id && (
+                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  )}
+                  {sel.isLocked ? 'Update Points' : 'Lock Points'}
+                </button>
               </div>
             </div>
           ))}

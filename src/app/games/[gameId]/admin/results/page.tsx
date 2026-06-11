@@ -6,15 +6,21 @@ import { useState } from 'react';
 import MatchCard from '@/components/MatchCard';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+type ResultFilter = 'ALL' | 'PENDING' | 'ENTERED';
 
 export default function ResultsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
-  const { getGame, getIsCreator, saveResults } = useGameStore();
+  const { getGame, getIsCreator, saveResults, lockPhase, blockMatches } = useGameStore();
   const [results, setResults] = useState<Record<string, [number, number]>>({});
+  const [checkedMatches, setCheckedMatches] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [blockedSaved, setBlockedSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLocking, setIsLocking] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
+  const [resultFilter, setResultFilter] = useState<ResultFilter>('ALL');
 
   const game = getGame(gameId);
 
@@ -26,13 +32,31 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
     );
   }
 
+  const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
   const matchesForPhase = game.matches.filter((m) => m.phaseKey === selectedPhase);
+  const visibleMatches = matchesForPhase.filter((m) => {
+    if (resultFilter === 'PENDING') return !m.resultEntered;
+    if (resultFilter === 'ENTERED') return m.resultEntered;
+    return true;
+  });
 
   const handleScoreChange = (matchId: string, home: number, away: number) => {
     setResults((prev) => ({
       ...prev,
       [matchId]: [home, away],
     }));
+  };
+
+  const handleCheckMatch = (matchId: string, isChecked: boolean) => {
+    setCheckedMatches((prev) => {
+      const next = new Set(prev);
+      if (isChecked) {
+        next.add(matchId);
+      } else {
+        next.delete(matchId);
+      }
+      return next;
+    });
   };
 
   const handleSubmit = async () => {
@@ -59,6 +83,39 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
     }
   };
 
+  const handleLockPredictions = async () => {
+    setError(null);
+    setIsLocking(true);
+    try {
+      await lockPhase(gameId, selectedPhase);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to lock predictions for this phase');
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const handleBlockCheckedMatches = async () => {
+    setError(null);
+    if (checkedMatches.size === 0) {
+      setError('Select at least one match to block.');
+      return;
+    }
+
+    setIsBlocking(true);
+    try {
+      const matchIds = Array.from(checkedMatches);
+      await blockMatches(gameId, matchIds);
+      setCheckedMatches(new Set());
+      setBlockedSaved(true);
+      setTimeout(() => setBlockedSaved(false), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to block selected matches');
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
   return (
     <div className="space-y-8" data-testid="results-page">
       <div>
@@ -71,7 +128,12 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
         {PHASE_OPTIONS.map((phase) => (
           <button
             key={phase}
-            onClick={() => { setSelectedPhase(phase); setResults({}); }}
+            onClick={() => {
+              setSelectedPhase(phase);
+              setResults({});
+              setCheckedMatches(new Set());
+              setBlockedSaved(false);
+            }}
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
               selectedPhase === phase
                 ? 'bg-orange-500 text-white'
@@ -82,6 +144,36 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
             {phase}
           </button>
         ))}
+      </div>
+
+      <div className="glass-card rounded-xl p-4" data-testid="results-phase-controls">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2" data-testid="results-filter-controls">
+            {(['ALL', 'PENDING', 'ENTERED'] as ResultFilter[]).map((filterKey) => (
+              <button
+                key={filterKey}
+                onClick={() => setResultFilter(filterKey)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  resultFilter === filterKey
+                    ? 'bg-orange-500 text-white'
+                    : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
+                }`}
+                data-testid={`results-filter-${filterKey}`}
+              >
+                {filterKey === 'ALL' ? 'All Matches' : filterKey === 'PENDING' ? 'Pending' : 'Entered'}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleLockPredictions}
+            disabled={Boolean(selectedPhaseData?.isLocked) || isLocking}
+            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+            data-testid="results-lock-phase-btn"
+          >
+            {selectedPhaseData?.isLocked ? 'Predictions Locked' : isLocking ? 'Locking...' : `Lock ${selectedPhase} Predictions`}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -96,29 +188,64 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
         </div>
       )}
 
-      <div className="space-y-4">
-        {matchesForPhase.map((match) => {
+      {blockedSaved && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-700" data-testid="results-blocked-saved">
+          Selected matches are now blocked for predictions.
+        </div>
+      )}
+
+      <div className="space-y-4" data-testid="results-match-list">
+        {visibleMatches.map((match) => {
           const pending = results[match.id];
           return (
-            <MatchCard
-              key={match.id}
-              match={{
-                id: match.id,
-                match_number: match.matchNumber,
-                home_team: match.homeTeam,
-                away_team: match.awayTeam,
-                scheduled_at: match.scheduledAt,
-                result_entered: match.resultEntered,
-                home_goals: match.homeGoals ?? undefined,
-                away_goals: match.awayGoals ?? undefined,
-              }}
-              editable={true}
-              onScoreChange={(home, away) => handleScoreChange(match.id, home, away)}
-              homeGoalsPredicted={pending?.[0] ?? match.homeGoals ?? undefined}
-              awayGoalsPredicted={pending?.[1] ?? match.awayGoals ?? undefined}
-            />
+            <div key={match.id} className="space-y-2">
+              <div className="flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-orange-800">
+                  <input
+                    type="checkbox"
+                    checked={checkedMatches.has(match.id)}
+                    onChange={(e) => handleCheckMatch(match.id, e.target.checked)}
+                    className="h-4 w-4 accent-orange-500"
+                    data-testid={`results-block-checkbox-${match.id}`}
+                  />
+                  Select to block
+                </label>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    match.predictionsLocked
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-green-100 text-green-700'
+                  }`}
+                  data-testid={`results-match-lock-status-${match.id}`}
+                >
+                  {match.predictionsLocked ? 'Blocked' : 'Open for predictions'}
+                </span>
+              </div>
+
+              <MatchCard
+                match={{
+                  id: match.id,
+                  match_number: match.matchNumber,
+                  home_team: match.homeTeam,
+                  away_team: match.awayTeam,
+                  scheduled_at: match.scheduledAt,
+                  result_entered: match.resultEntered,
+                  home_goals: match.homeGoals ?? undefined,
+                  away_goals: match.awayGoals ?? undefined,
+                }}
+                editable={true}
+                onScoreChange={(home, away) => handleScoreChange(match.id, home, away)}
+                homeGoalsPredicted={pending?.[0] ?? match.homeGoals ?? undefined}
+                awayGoalsPredicted={pending?.[1] ?? match.awayGoals ?? undefined}
+              />
+            </div>
           );
         })}
+        {visibleMatches.length === 0 && (
+          <div className="glass-card rounded-xl p-6 text-center text-sm text-gray-600" data-testid="results-empty">
+            No matches found for this phase/filter.
+          </div>
+        )}
       </div>
 
       <button
@@ -131,6 +258,15 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
         )}
         {isSaving ? 'Saving...' : 'Save Results'}
+      </button>
+
+      <button
+        onClick={handleBlockCheckedMatches}
+        disabled={checkedMatches.size === 0 || isBlocking}
+        className="w-full rounded-lg bg-red-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+        data-testid="results-block-checked-btn"
+      >
+        {isBlocking ? 'Blocking...' : `Block Selected Matches (${checkedMatches.size})`}
       </button>
     </div>
   );

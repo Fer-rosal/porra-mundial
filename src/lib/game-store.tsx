@@ -53,6 +53,7 @@ export interface LocalMatch {
   homeTeam: string
   awayTeam: string
   scheduledAt: string
+  predictionsLocked: boolean
   homeGoals: number | null
   awayGoals: number | null
   resultEntered: boolean
@@ -74,6 +75,7 @@ export interface LocalScorerSelection {
   phaseKey: PhaseKey
   sessionId: string
   playerName: string
+  goalsScored: number
   isLocked: boolean
   createdAt: string
   updatedAt: string
@@ -241,6 +243,7 @@ function dbToLocalGame(
       homeTeam:       m.home_team,
       awayTeam:       m.away_team,
       scheduledAt:    m.scheduled_at,
+      predictionsLocked: m.predictions_locked,
       homeGoals:      m.home_goals ?? null,
       awayGoals:      m.away_goals ?? null,
       resultEntered:  m.result_entered,
@@ -265,6 +268,7 @@ function dbToLocalGame(
         phaseKey:    s.phase_key as PhaseKey,
         sessionId:   pl?.session_id ?? '',
         playerName:  s.player_name,
+        goalsScored: s.goals_scored,
         isLocked:    s.is_locked,
         createdAt:   s.created_at,
         updatedAt:   s.updated_at,
@@ -315,6 +319,7 @@ interface GameStoreContextValue {
   openPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
   lockPhase:           (gameId: string, phaseKey: PhaseKey) => Promise<void>
   lockGame:            (gameId: string) => Promise<void>
+  blockMatches:        (gameId: string, matchIds: string[]) => Promise<void>
   downloadActionLogs:  (gameId: string) => Promise<{ count: number }>
   saveResults:         (gameId: string, phaseKey: PhaseKey, results: ResultInput[]) => Promise<void>
   deleteGame:          (gameId: string) => Promise<void>
@@ -540,6 +545,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       home_team:            m.home_team,
       away_team:            m.away_team,
       scheduled_at:         m.scheduled_at,
+      predictions_locked:   false,
       result_entered:       false,
       teams_confirmed:      m.phase_key === 'LEAGUE',
       created_at:           now,
@@ -763,6 +769,17 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     const mySessionId = getSessionId(gameId)
     if (!mySessionId) return
 
+    const game = games[gameId]
+    if (game) {
+      const blockedMatchIds = predictions
+        .filter((p) => game.matches.find((m) => m.id === p.matchId)?.predictionsLocked)
+        .map((p) => p.matchId)
+
+      if (blockedMatchIds.length > 0) {
+        throw new Error('One or more selected matches are blocked by the admin and cannot be edited.')
+      }
+    }
+
     const { data: player } = await supabase
       .from('game_players')
       .select('id')
@@ -960,6 +977,23 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     await fetchGame(gameId)
   }
 
+  async function blockMatches(gameId: string, matchIds: string[]): Promise<void> {
+    const creatorSessionId = getCreatorSessionId(gameId)
+    if (!creatorSessionId || matchIds.length === 0) return
+
+    const client = supabaseWithSession(creatorSessionId)
+    await client.from('matches')
+      .update({ predictions_locked: true })
+      .in('id', matchIds)
+
+    await safeLogGameAction(gameId, creatorSessionId, 'matches_blocked', {
+      count: matchIds.length,
+      matchIds,
+    })
+
+    await fetchGame(gameId)
+  }
+
   async function downloadActionLogs(gameId: string): Promise<{ count: number }> {
     const creatorSessionId = getCreatorSessionId(gameId)
     if (!creatorSessionId) return { count: 0 }
@@ -1135,6 +1169,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
             home_team:            m.homeTeam,
             away_team:            m.awayTeam,
             scheduled_at:         m.scheduledAt,
+            predictions_locked:   m.predictionsLocked ?? false,
             result_entered:       m.resultEntered,
             home_goals:           m.homeGoals ?? null,
             away_goals:           m.awayGoals ?? null,
@@ -1281,6 +1316,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         openPhase,
         lockPhase,
         lockGame,
+        blockMatches,
         downloadActionLogs,
         saveResults,
         deleteGame,

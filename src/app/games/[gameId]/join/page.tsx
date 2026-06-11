@@ -46,7 +46,7 @@ export default function PlayerTokenRedemptionPage({
       if ('error' in result) {
         if (result.error === 'no_game') {
           setErrorType('no-game');
-          setErrorMessage('Game data not found. You may need to import the game first.');
+          setErrorMessage('Game data not found. Ask the game creator for a fresh invite or recovery link.');
         } else {
           setErrorType('invalid');
           setErrorMessage('This recovery link is not valid or has already been used.');
@@ -103,11 +103,11 @@ export default function PlayerTokenRedemptionPage({
           )}
           {errorType === 'no-game' && (
             <Link
-              href="/import"
+              href="/join"
               className="btn-primary w-full rounded-xl px-6 py-3 text-center"
-              data-testid="join-token-import-link"
+              data-testid="join-token-join-link"
             >
-              Import game data
+              Join with invite code
             </Link>
           )}
           <Link

@@ -35,7 +35,7 @@ export function calculatePredictionPoints(
  * Scoring:
  *   - Exact match (home AND away correct): 3 points
  *   - Correct outcome only: 1 point
- *   - Scorer selection correct (player scored in that phase): 1 point (per spec, binary)
+ *   - Scorer points: 1 point per goal scored by selected player (when locked by admin)
  * FINAL phase multiplier = 3x (applied to total for that phase)
  */
 export function calculateLeaderboard(game: LocalGame): LeaderboardEntry[] {
@@ -78,19 +78,13 @@ export function calculateLeaderboard(game: LocalGame): LeaderboardEntry[] {
           )
         }
 
-        // Scorer selection: 1 point if the scorer they picked scored at least one goal
-        // Per spec notes: "match existing scoring.ts logic" — binary 1pt per phase scorer pick
+        // Scorer points are recorded by admin per player selection.
         const scorerSelection = game.scorerSelections.find(
           (s) => s.phaseKey === phaseKey && s.sessionId === player.sessionId
         )
         let scorerPoints = 0
-        // Since we don't track actual scorer goals in the MVP (no goalsScored field yet),
-        // scorer points will be 0 unless the scorer selection is locked (indicating it was verified).
-        // ARCHITECT_NOTE: The spec says "player_name matches any scorer in that phase" but
-        // LocalScorerSelection has no goalsScored field. Scorer points default to 0 until admin marks them.
-        // Implemented as spec'd with the available data — flagging for review.
         if (scorerSelection && scorerSelection.isLocked) {
-          scorerPoints = 1
+          scorerPoints = Math.max(0, scorerSelection.goalsScored ?? 0)
         }
 
         phaseScores[phaseKey] = (predictionPoints + scorerPoints) * multiplier

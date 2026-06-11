@@ -38,7 +38,11 @@ export default function LeaderboardPage({ params }: { params: Promise<{ gameId: 
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl">
-          <LeaderboardTable entries={entries} currentSessionId={mySession?.sessionId} />
+          <LeaderboardTable
+            entries={entries}
+            currentSessionId={mySession?.sessionId}
+            creatorSessionId={game.creatorSessionId}
+          />
         </div>
       )}
     </div>

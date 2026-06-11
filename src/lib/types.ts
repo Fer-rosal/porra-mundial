@@ -42,6 +42,7 @@ export interface DbMatch {
   home_team: string
   away_team: string
   scheduled_at: string
+  predictions_locked: boolean
   result_entered: boolean
   home_goals: number | null
   away_goals: number | null
