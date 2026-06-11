@@ -21,6 +21,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
   const [isBlocking, setIsBlocking] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PhaseKey>('LEAGUE');
   const [resultFilter, setResultFilter] = useState<ResultFilter>('ALL');
+  const [teamSearch, setTeamSearch] = useState('');
 
   const game = getGame(gameId);
 
@@ -33,11 +34,24 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
   }
 
   const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
-  const matchesForPhase = game.matches.filter((m) => m.phaseKey === selectedPhase);
+  const matchesForPhase = game.matches
+    .filter((m) => m.phaseKey === selectedPhase)
+    .sort((a, b) => a.matchNumber - b.matchNumber);
+  const searchTerm = teamSearch.trim().toLowerCase();
   const visibleMatches = matchesForPhase.filter((m) => {
-    if (resultFilter === 'PENDING') return !m.resultEntered;
-    if (resultFilter === 'ENTERED') return m.resultEntered;
-    return true;
+    const passesResultFilter =
+      resultFilter === 'ALL'
+        ? true
+        : resultFilter === 'PENDING'
+          ? !m.resultEntered
+          : m.resultEntered;
+
+    const passesSearch =
+      !searchTerm
+      || m.homeTeam.toLowerCase().includes(searchTerm)
+      || m.awayTeam.toLowerCase().includes(searchTerm);
+
+    return passesResultFilter && passesSearch;
   });
 
   const handleScoreChange = (matchId: string, home: number, away: number) => {
@@ -123,27 +137,45 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
         <p className="mt-2 text-gray-600">Input final scores for all matches in this phase</p>
       </div>
 
-      {/* Phase selector */}
-      <div className="flex flex-wrap gap-2">
-        {PHASE_OPTIONS.map((phase) => (
-          <button
-            key={phase}
-            onClick={() => {
-              setSelectedPhase(phase);
-              setResults({});
-              setCheckedMatches(new Set());
-              setBlockedSaved(false);
-            }}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              selectedPhase === phase
-                ? 'bg-orange-500 text-white'
-                : 'border border-orange-200 bg-white text-orange-700 hover:bg-orange-50'
-            }`}
-            data-testid={`results-phase-${phase}`}
-          >
-            {phase}
-          </button>
-        ))}
+      <div className="glass-card rounded-xl p-4" data-testid="results-round-search-controls">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="results-round-select" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Round
+            </label>
+            <select
+              id="results-round-select"
+              value={selectedPhase}
+              onChange={(e) => {
+                const nextPhase = e.target.value as PhaseKey;
+                setSelectedPhase(nextPhase);
+                setResults({});
+                setCheckedMatches(new Set());
+                setBlockedSaved(false);
+              }}
+              className="w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm text-gray-900"
+              data-testid="results-round-select"
+            >
+              {PHASE_OPTIONS.map((phase) => (
+                <option key={phase} value={phase}>{phase}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="results-team-search" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Search Team
+            </label>
+            <input
+              id="results-team-search"
+              type="text"
+              value={teamSearch}
+              onChange={(e) => setTeamSearch(e.target.value)}
+              placeholder="Type home or away team name"
+              className="w-full rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm text-gray-900"
+              data-testid="results-team-search"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="glass-card rounded-xl p-4" data-testid="results-phase-controls">
@@ -243,7 +275,7 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
         })}
         {visibleMatches.length === 0 && (
           <div className="glass-card rounded-xl p-6 text-center text-sm text-gray-600" data-testid="results-empty">
-            No matches found for this phase/filter.
+            No matches found for this round/filter/search.
           </div>
         )}
       </div>
