@@ -4,6 +4,8 @@ import { use } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import { useState } from 'react';
 
+const PHASE_ORDER: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+
 export default function ScorerPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
   const { getGame, getMySession, saveScorerSelection, saveWinnerPick } = useGameStore();
@@ -34,7 +36,9 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
     );
   }
 
-  const openPhase = game.phases.find((p) => p.isOpen && !p.isLocked);
+  const openPhase = [...game.phases]
+    .filter((p) => p.isOpen && !p.isLocked)
+    .sort((a, b) => PHASE_ORDER.indexOf(b.phaseKey) - PHASE_ORDER.indexOf(a.phaseKey))[0];
   const phaseKey = openPhase?.phaseKey as PhaseKey | undefined;
 
   const existingSelection = phaseKey
@@ -129,14 +133,14 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
       )}
 
       <div className="glass-card rounded-xl p-5" data-testid="winner-pick-card">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Tournament Winner Pick (+10 bonus)</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Tournament Winner Pick (+20 bonus)</p>
         {existingWinnerPick ? (
           <>
             <p className="mt-2 text-2xl font-bold text-gray-900">{existingWinnerPick.teamName}</p>
             <p className="mt-2 text-sm text-gray-500">Your winner pick is locked and cannot be changed.</p>
             {existingWinnerPick.isLocked && (
               <span className="mt-3 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-                Bonus Awarded: +{existingWinnerPick.awardedPoints || 10}
+                Bonus Awarded: +{existingWinnerPick.awardedPoints || 20}
               </span>
             )}
           </>

@@ -401,3 +401,46 @@ describe('0-0 default — checked matches with no score input default to [0,0]',
     expect(resolved.size).toBe(1)
   })
 })
+
+// ─── Phase transition sequencing ──────────────────────────────────────────────
+
+describe('phase transitions — sequential progression', () => {
+  const PHASES = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'] as const
+  type Phase = (typeof PHASES)[number]
+
+  function canOpenPhase(target: Phase, locked: Set<Phase>): boolean {
+    const idx = PHASES.indexOf(target)
+    if (idx <= 0) return true
+    const previous = PHASES[idx - 1]
+    return locked.has(previous)
+  }
+
+  it('allows opening LEAGUE without prerequisites', () => {
+    expect(canOpenPhase('LEAGUE', new Set())).toBe(true)
+  })
+
+  it('requires LEAGUE locked before opening R16', () => {
+    expect(canOpenPhase('R16', new Set())).toBe(false)
+    expect(canOpenPhase('R16', new Set<Phase>(['LEAGUE']))).toBe(true)
+  })
+
+  it('requires R16 locked before opening R8', () => {
+    expect(canOpenPhase('R8', new Set<Phase>(['LEAGUE']))).toBe(false)
+    expect(canOpenPhase('R8', new Set<Phase>(['LEAGUE', 'R16']))).toBe(true)
+  })
+
+  it('requires R8 locked before opening R4', () => {
+    expect(canOpenPhase('R4', new Set<Phase>(['LEAGUE', 'R16']))).toBe(false)
+    expect(canOpenPhase('R4', new Set<Phase>(['LEAGUE', 'R16', 'R8']))).toBe(true)
+  })
+
+  it('requires R4 locked before opening R2 (semifinals)', () => {
+    expect(canOpenPhase('R2', new Set<Phase>(['LEAGUE', 'R16', 'R8']))).toBe(false)
+    expect(canOpenPhase('R2', new Set<Phase>(['LEAGUE', 'R16', 'R8', 'R4']))).toBe(true)
+  })
+
+  it('requires R2 locked before opening FINAL', () => {
+    expect(canOpenPhase('FINAL', new Set<Phase>(['LEAGUE', 'R16', 'R8', 'R4']))).toBe(false)
+    expect(canOpenPhase('FINAL', new Set<Phase>(['LEAGUE', 'R16', 'R8', 'R4', 'R2']))).toBe(true)
+  })
+})

@@ -7,7 +7,7 @@ import LeaderboardTable from '@/components/LeaderboardTable';
 
 const PHASE_LABELS = {
   LEAGUE: 'LEAGUE',
-  R16: 'R32',
+  R16: 'R16',
   R8: 'R16',
   R4: 'QF',
   R2: 'SF',

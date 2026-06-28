@@ -32,6 +32,19 @@ type SupabaseLikeError = {
 
 export type PhaseKey = 'LEAGUE' | 'R16' | 'R8' | 'R4' | 'R2' | 'FINAL'
 
+const PHASE_KEY_ALIASES: Record<PhaseKey, string[]> = {
+  LEAGUE: ['LEAGUE'],
+  R16: ['R16', '1/16'],
+  R8: ['R8', '1/8'],
+  R4: ['R4', '1/4'],
+  R2: ['R2', '1/2'],
+  FINAL: ['FINAL'],
+}
+
+function phaseKeyCandidates(phaseKey: PhaseKey): string[] {
+  return PHASE_KEY_ALIASES[phaseKey] ?? [phaseKey]
+}
+
 export interface LocalPlayer {
   sessionId: string
   name: string
@@ -924,18 +937,25 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     if (!player) return
 
     // Look up the phase row to get tournament_phase_id
-    const { data: phaseRow } = await supabase
+    const { data: phaseRows, error: phaseLookupErr } = await supabase
       .from('tournament_phases')
       .select('id')
       .eq('game_id', gameId)
-      .eq('phase_key', phaseKey)
-      .single()
-    if (!phaseRow) return
+      .in('phase_key', phaseKeyCandidates(phaseKey))
+
+    if (phaseLookupErr) {
+      throw new Error(formatSupabaseError('Failed to resolve scorer phase.', phaseLookupErr))
+    }
+
+    const phaseRow = (phaseRows as Pick<DbTournamentPhase, 'id'>[] | null)?.[0]
+    if (!phaseRow) {
+      throw new Error(`Could not find phase ${phaseKey} for this game.`)
+    }
 
     const now = new Date().toISOString()
     const row = {
       id:                   generateUUID(),
-      tournament_phase_id:  (phaseRow as DbTournamentPhase).id,
+      tournament_phase_id:  phaseRow.id,
       game_player_id:       (player as DbGamePlayer).id,
       phase_key:            phaseKey,
       player_name:          playerName,
@@ -1010,11 +1030,56 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
   async function openPhase(gameId: string, phaseKey: PhaseKey): Promise<void> {
     const creatorSessionId = getCreatorSessionId(gameId)
-    if (!creatorSessionId) return
+    if (!creatorSessionId) {
+      throw new Error('Creator session not found. Re-open the admin link and try again.')
+    }
     const client = supabaseWithSession(creatorSessionId)
-    await client.from('tournament_phases')
-      .update({ is_open: true, opened_at: new Date().toISOString() })
-      .eq('game_id', gameId).eq('phase_key', phaseKey)
+    const now = new Date().toISOString()
+
+    const phaseIndex = ALL_PHASES.indexOf(phaseKey)
+    if (phaseIndex > 0) {
+      const previousPhase = ALL_PHASES[phaseIndex - 1]
+      const { data: previousRows, error: previousErr } = await client
+        .from('tournament_phases')
+        .select('is_locked')
+        .eq('game_id', gameId)
+        .in('phase_key', phaseKeyCandidates(previousPhase))
+
+      if (previousErr) {
+        throw new Error(formatSupabaseError('Failed to validate phase sequence.', previousErr))
+      }
+
+      const previousLocked = Boolean(
+        (previousRows as Pick<DbTournamentPhase, 'is_locked'>[] | null)?.some((row) => row.is_locked)
+      )
+      if (!previousLocked) {
+        throw new Error(`Cannot open ${phaseKey} before locking ${previousPhase}.`)
+      }
+    }
+
+    const { error: closeOthersErr } = await client.from('tournament_phases')
+      .update({ is_open: false })
+      .eq('game_id', gameId)
+      .eq('is_locked', false)
+
+    if (closeOthersErr) {
+      throw new Error(formatSupabaseError('Failed to close other open phases.', closeOthersErr))
+    }
+
+    const { data: openedRows, error: openErr } = await client.from('tournament_phases')
+      .update({ is_open: true, opened_at: now })
+      .eq('game_id', gameId)
+      .eq('is_locked', false)
+      .in('phase_key', phaseKeyCandidates(phaseKey))
+      .select('id')
+
+    if (openErr) {
+      throw new Error(formatSupabaseError(`Failed to open phase ${phaseKey}.`, openErr))
+    }
+    if (!openedRows || openedRows.length === 0) {
+      throw new Error(`Could not find phase ${phaseKey} for this game.`)
+    }
+
     await safeLogGameAction(gameId, creatorSessionId, 'phase_opened', { phaseKey })
     await fetchGame(gameId)
   }
@@ -1023,11 +1088,25 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
 
   async function lockPhase(gameId: string, phaseKey: PhaseKey): Promise<void> {
     const creatorSessionId = getCreatorSessionId(gameId)
-    if (!creatorSessionId) return
+    if (!creatorSessionId) {
+      throw new Error('Creator session not found. Re-open the admin link and try again.')
+    }
     const client = supabaseWithSession(creatorSessionId)
-    await client.from('tournament_phases')
-      .update({ is_locked: true, locked_at: new Date().toISOString() })
-      .eq('game_id', gameId).eq('phase_key', phaseKey)
+    const now = new Date().toISOString()
+
+    const { data: lockedRows, error: lockErr } = await client.from('tournament_phases')
+      .update({ is_open: false, is_locked: true, locked_at: now })
+      .eq('game_id', gameId)
+      .in('phase_key', phaseKeyCandidates(phaseKey))
+      .select('id')
+
+    if (lockErr) {
+      throw new Error(formatSupabaseError(`Failed to lock phase ${phaseKey}.`, lockErr))
+    }
+    if (!lockedRows || lockedRows.length === 0) {
+      throw new Error(`Could not find phase ${phaseKey} for this game.`)
+    }
+
     await safeLogGameAction(gameId, creatorSessionId, 'phase_locked', { phaseKey })
     await fetchGame(gameId)
   }

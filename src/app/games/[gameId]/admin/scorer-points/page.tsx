@@ -8,7 +8,7 @@ import { supabaseWithSession } from '@/lib/supabase';
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 const PHASE_LABELS: Record<PhaseKey, string> = {
   LEAGUE: 'LEAGUE',
-  R16: 'R32',
+  R16: 'R16',
   R8: 'R8',
   R4: 'R4',
   R2: 'R2',
@@ -111,7 +111,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
         .from('winner_picks')
         .update({
           is_locked: true,
-          awarded_points: 10,
+          awarded_points: 20,
           updated_at: new Date().toISOString(),
         })
         .eq('id', winnerPickId);
@@ -226,8 +226,8 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
       )}
 
       <div className="glass-card rounded-lg p-5" data-testid="winner-bonus-admin-card">
-        <h2 className="text-lg font-semibold text-gray-900">Tournament Winner Bonus (+10)</h2>
-        <p className="mt-1 text-sm text-gray-600">Award +10 to players who picked the champion correctly.</p>
+        <h2 className="text-lg font-semibold text-gray-900">Tournament Winner Bonus (+20)</h2>
+        <p className="mt-1 text-sm text-gray-600">Award +20 to players who picked the champion correctly.</p>
 
         {winnerPicks.length === 0 ? (
           <p className="mt-4 text-sm text-gray-600" data-testid="winner-bonus-empty">No winner picks submitted yet.</p>
@@ -255,7 +255,7 @@ export default function ScorerPointsPage({ params }: { params: Promise<{ gameId:
                       ? 'Saving...'
                       : pick.isLocked
                         ? 'Update Bonus'
-                        : 'Award +10'}
+                        : 'Award +20'}
                   </button>
                 </div>
               </div>
