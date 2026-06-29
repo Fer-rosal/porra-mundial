@@ -6,8 +6,7 @@ import MatchCard from '@/components/MatchCard';
 import CopyRecoveryLink from '@/components/CopyRecoveryLink';
 import { buildPlayerRecoveryLink } from '@/lib/id-utils';
 import { calculatePredictionPoints } from '@/lib/local-scoring';
-
-const PHASE_ORDER: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+import { getHighestOpenUnlockedPhase } from '@/lib/phase-utils';
 
 export default function PredictionsPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -48,9 +47,8 @@ export default function PredictionsPage({ params }: { params: Promise<{ gameId: 
       : '';
 
   // Find the open, unlocked phase
-  const openPhase = [...game.phases]
-    .filter((p) => p.isOpen && !p.isLocked)
-    .sort((a, b) => PHASE_ORDER.indexOf(b.phaseKey) - PHASE_ORDER.indexOf(a.phaseKey))[0];
+  const openPhaseKey = getHighestOpenUnlockedPhase(game.phases);
+  const openPhase = openPhaseKey ? game.phases.find((p) => p.phaseKey === openPhaseKey) : null;
   const lockedPhase = game.phases.find((p) => p.isLocked);
   const isReadOnlyBoard = game.status === 'COMPLETED' || !openPhase;
 

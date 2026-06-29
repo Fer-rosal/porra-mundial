@@ -3,8 +3,7 @@
 import { use } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
 import { useState } from 'react';
-
-const PHASE_ORDER: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
+import { getHighestOpenUnlockedPhase } from '@/lib/phase-utils';
 
 export default function ScorerPage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
@@ -36,9 +35,8 @@ export default function ScorerPage({ params }: { params: Promise<{ gameId: strin
     );
   }
 
-  const openPhase = [...game.phases]
-    .filter((p) => p.isOpen && !p.isLocked)
-    .sort((a, b) => PHASE_ORDER.indexOf(b.phaseKey) - PHASE_ORDER.indexOf(a.phaseKey))[0];
+  const openPhaseKey = getHighestOpenUnlockedPhase(game.phases);
+  const openPhase = openPhaseKey ? game.phases.find((p) => p.phaseKey === openPhaseKey) : null;
   const phaseKey = openPhase?.phaseKey as PhaseKey | undefined;
 
   const existingSelection = phaseKey

@@ -2,8 +2,9 @@
 
 import { use } from 'react';
 import { useGameStore, type PhaseKey } from '@/lib/game-store';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import MatchCard from '@/components/MatchCard';
+import { getHighestOpenUnlockedPhase } from '@/lib/phase-utils';
 
 const PHASE_OPTIONS: PhaseKey[] = ['LEAGUE', 'R16', 'R8', 'R4', 'R2', 'FINAL'];
 const PHASE_LABELS: Record<PhaseKey, string> = {
@@ -42,6 +43,18 @@ export default function ResultsPage({ params }: { params: Promise<{ gameId: stri
   }
 
   const selectedPhaseData = game.phases.find((p) => p.phaseKey === selectedPhase);
+  const highestOpenPhase = getHighestOpenUnlockedPhase(game.phases);
+
+  useEffect(() => {
+    // When a new phase opens, follow it automatically if current selection is already locked.
+    if (highestOpenPhase && selectedPhaseData?.isLocked && selectedPhase !== highestOpenPhase) {
+      setSelectedPhase(highestOpenPhase);
+      setResults({});
+      setCheckedMatches(new Set());
+      setBlockedSaved(false);
+    }
+  }, [highestOpenPhase, selectedPhase, selectedPhaseData?.isLocked]);
+
   const matchesForPhase = game.matches
     .filter((m) => m.phaseKey === selectedPhase)
     .sort((a, b) => a.matchNumber - b.matchNumber);
