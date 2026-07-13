@@ -10,6 +10,7 @@ import {
 import { generateUUID, generateInviteCode } from './id-utils'
 import { MATCH_DATA } from './match-data'
 import { supabase, supabaseWithSession } from './supabase'
+import { normalizePhaseKey } from './phase-utils'
 import type {
   DbGame,
   DbGamePlayer,
@@ -39,6 +40,10 @@ const PHASE_KEY_ALIASES: Record<PhaseKey, string[]> = {
   R4: ['R4', '1/4'],
   R2: ['R2', '1/2'],
   FINAL: ['FINAL'],
+}
+
+function isDefined<T>(value: T | null): value is T {
+  return value !== null
 }
 
 function phaseKeyCandidates(phaseKey: PhaseKey): string[] {
@@ -255,26 +260,38 @@ function dbToLocalGame(
       joinedAt:    p.joined_at,
       playerToken: p.player_token,
     })),
-    phases: phases.map(ph => ({
-      phaseKey:  ph.phase_key as PhaseKey,
-      isOpen:    ph.is_open,
-      isLocked:  ph.is_locked,
-      openedAt:  ph.opened_at ?? null,
-      lockedAt:  ph.locked_at ?? null,
-    })),
-    matches: matches.map(m => ({
-      id:             m.id,
-      phaseKey:       m.phase_key as PhaseKey,
-      matchNumber:    m.match_number,
-      homeTeam:       m.home_team,
-      awayTeam:       m.away_team,
-      scheduledAt:    m.scheduled_at,
-      predictionsLocked: m.predictions_locked,
-      homeGoals:      m.home_goals ?? null,
-      awayGoals:      m.away_goals ?? null,
-      resultEntered:  m.result_entered,
-      teamsConfirmed: m.teams_confirmed,
-    })),
+    phases: phases
+      .map(ph => {
+        const phaseKey = normalizePhaseKey(ph.phase_key)
+        if (!phaseKey) return null
+        return {
+          phaseKey,
+          isOpen: ph.is_open,
+          isLocked: ph.is_locked,
+          openedAt: ph.opened_at ?? null,
+          lockedAt: ph.locked_at ?? null,
+        }
+      })
+      .filter(isDefined),
+    matches: matches
+      .map(m => {
+        const phaseKey = normalizePhaseKey(m.phase_key)
+        if (!phaseKey) return null
+        return {
+          id: m.id,
+          phaseKey,
+          matchNumber: m.match_number,
+          homeTeam: m.home_team,
+          awayTeam: m.away_team,
+          scheduledAt: m.scheduled_at,
+          predictionsLocked: m.predictions_locked,
+          homeGoals: m.home_goals ?? null,
+          awayGoals: m.away_goals ?? null,
+          resultEntered: m.result_entered,
+          teamsConfirmed: m.teams_confirmed,
+        }
+      })
+      .filter(isDefined),
     predictions: preds.map(pr => {
       const pl = playerById.get(pr.game_player_id)
       return {
@@ -287,19 +304,23 @@ function dbToLocalGame(
         updatedAt:           pr.updated_at,
       }
     }),
-    scorerSelections: scorers.map(s => {
-      const pl = playerById.get(s.game_player_id)
-      return {
-        id:          s.id,
-        phaseKey:    s.phase_key as PhaseKey,
-        sessionId:   pl?.session_id ?? '',
-        playerName:  s.player_name,
-        goalsScored: s.goals_scored,
-        isLocked:    s.is_locked,
-        createdAt:   s.created_at,
-        updatedAt:   s.updated_at,
-      }
-    }),
+    scorerSelections: scorers
+      .map(s => {
+        const phaseKey = normalizePhaseKey(s.phase_key)
+        if (!phaseKey) return null
+        const pl = playerById.get(s.game_player_id)
+        return {
+          id: s.id,
+          phaseKey,
+          sessionId: pl?.session_id ?? '',
+          playerName: s.player_name,
+          goalsScored: s.goals_scored,
+          isLocked: s.is_locked,
+          createdAt: s.created_at,
+          updatedAt: s.updated_at,
+        }
+      })
+      .filter(isDefined),
     winnerPicks: winnerPicks.map(w => {
       const pl = playerById.get(w.game_player_id)
       return {

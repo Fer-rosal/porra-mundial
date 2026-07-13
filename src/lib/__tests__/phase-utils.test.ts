@@ -1,4 +1,4 @@
-import { getHighestOpenUnlockedPhase } from '../phase-utils'
+import { getHighestOpenUnlockedPhase, normalizePhaseKey } from '../phase-utils'
 import type { PhaseKey } from '../game-store'
 
 function phase(phaseKey: PhaseKey, isOpen: boolean, isLocked: boolean) {
@@ -76,5 +76,24 @@ describe('getHighestOpenUnlockedPhase', () => {
     expect(r4).toBe('R4')
     expect(r2).toBe('R2')
     expect(final).toBe('FINAL')
+  })
+})
+
+describe('normalizePhaseKey', () => {
+  it('maps legacy knockout aliases to canonical phase keys', () => {
+    expect(normalizePhaseKey('1/16')).toBe('R16')
+    expect(normalizePhaseKey('1/8')).toBe('R8')
+    expect(normalizePhaseKey('1/4')).toBe('R4')
+    expect(normalizePhaseKey('1/2')).toBe('R2')
+  })
+
+  it('accepts canonical keys and trims spacing', () => {
+    expect(normalizePhaseKey('R8')).toBe('R8')
+    expect(normalizePhaseKey(' r4 ')).toBe('R4')
+    expect(normalizePhaseKey('final')).toBe('FINAL')
+  })
+
+  it('returns null for unknown keys', () => {
+    expect(normalizePhaseKey('QUARTERS')).toBeNull()
   })
 })
