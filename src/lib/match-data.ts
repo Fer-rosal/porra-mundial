@@ -143,7 +143,7 @@ export const MATCH_DATA: MatchDataPoint[] = [
   { match_number: 102, phase_key: 'R2', home_team: 'Winner match 99', away_team: 'Winner match 100', scheduled_at: '2026-07-15T23:00:00Z', venue: 'Atlanta Stadium' },
 
   // ── FINAL PHASE — 2 matches (Bronze Final + Final) ──────────────────────────
-  { match_number: 103, phase_key: 'FINAL', home_team: 'Runner-up match 101', away_team: 'Runner-up match 102', scheduled_at: '2026-07-18T23:00:00Z', venue: 'Miami Stadium' },
+  { match_number: 103, phase_key: 'FINAL', home_team: 'Loser match 101', away_team: 'Loser match 102', scheduled_at: '2026-07-18T23:00:00Z', venue: 'Miami Stadium' },
   { match_number: 104, phase_key: 'FINAL', home_team: 'Winner match 101', away_team: 'Winner match 102', scheduled_at: '2026-07-19T23:00:00Z', venue: 'TBD' },
 ]
 

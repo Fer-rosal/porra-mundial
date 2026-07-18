@@ -161,6 +161,22 @@ interface MatchTeamUpdate {
   awayTeam: string
 }
 
+interface KnockoutOutcome {
+  winner: string
+  loser: string
+}
+
+function resolveKnockoutOutcome(match: Pick<DbMatch, 'home_team' | 'away_team' | 'home_goals' | 'away_goals'>): KnockoutOutcome | null {
+  if (match.home_goals === null || match.away_goals === null) return null
+  if (match.home_goals === match.away_goals) return null
+
+  if (match.home_goals > match.away_goals) {
+    return { winner: match.home_team, loser: match.away_team }
+  }
+
+  return { winner: match.away_team, loser: match.home_team }
+}
+
 type ActionLogDetails = Record<string, unknown>
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -1099,6 +1115,84 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     }
     if (!openedRows || openedRows.length === 0) {
       throw new Error(`Could not find phase ${phaseKey} for this game.`)
+    }
+
+    if (phaseKey === 'FINAL') {
+      const { data: semifinalRows, error: semifinalErr } = await client
+        .from('matches')
+        .select('id, match_number, home_team, away_team, home_goals, away_goals, result_entered')
+        .in('phase_key', phaseKeyCandidates('R2'))
+        .in('match_number', [101, 102])
+
+      if (semifinalErr) {
+        throw new Error(formatSupabaseError('Failed to load semi-final matches.', semifinalErr))
+      }
+
+      const semifinals = (semifinalRows ?? []) as Pick<
+        DbMatch,
+        'id' | 'match_number' | 'home_team' | 'away_team' | 'home_goals' | 'away_goals' | 'result_entered'
+      >[]
+      const semifinal101 = semifinals.find((m) => m.match_number === 101)
+      const semifinal102 = semifinals.find((m) => m.match_number === 102)
+
+      if (!semifinal101 || !semifinal102 || !semifinal101.result_entered || !semifinal102.result_entered) {
+        throw new Error('Cannot open FINAL before both semi-final results are entered.')
+      }
+
+      const outcome101 = resolveKnockoutOutcome(semifinal101)
+      const outcome102 = resolveKnockoutOutcome(semifinal102)
+      if (!outcome101 || !outcome102) {
+        throw new Error('Semi-final matches must have a winner and loser before opening FINAL.')
+      }
+
+      const { data: finalRows, error: finalErr } = await client
+        .from('matches')
+        .select('id, match_number')
+        .in('phase_key', phaseKeyCandidates('FINAL'))
+        .in('match_number', [103, 104])
+
+      if (finalErr) {
+        throw new Error(formatSupabaseError('Failed to load final phase matches.', finalErr))
+      }
+
+      const finalMatches = (finalRows ?? []) as Pick<DbMatch, 'id' | 'match_number'>[]
+      const thirdPlaceMatch = finalMatches.find((m) => m.match_number === 103)
+      const finalMatch = finalMatches.find((m) => m.match_number === 104)
+
+      if (!thirdPlaceMatch || !finalMatch) {
+        throw new Error('Final phase matches are not configured correctly for this game.')
+      }
+
+      const { error: thirdPlaceUpdateErr } = await client
+        .from('matches')
+        .update({
+          home_team: outcome101.loser,
+          away_team: outcome102.loser,
+          teams_confirmed: true,
+        })
+        .eq('id', thirdPlaceMatch.id)
+
+      if (thirdPlaceUpdateErr) {
+        throw new Error(formatSupabaseError('Failed to seed third-place match teams.', thirdPlaceUpdateErr))
+      }
+
+      const { error: finalUpdateErr } = await client
+        .from('matches')
+        .update({
+          home_team: outcome101.winner,
+          away_team: outcome102.winner,
+          teams_confirmed: true,
+        })
+        .eq('id', finalMatch.id)
+
+      if (finalUpdateErr) {
+        throw new Error(formatSupabaseError('Failed to seed final match teams.', finalUpdateErr))
+      }
+
+      await safeLogGameAction(gameId, creatorSessionId, 'final_phase_seeded', {
+        thirdPlaceMatchId: thirdPlaceMatch.id,
+        finalMatchId: finalMatch.id,
+      })
     }
 
     await safeLogGameAction(gameId, creatorSessionId, 'phase_opened', { phaseKey })
